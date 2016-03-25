@@ -27,8 +27,8 @@ namespace pi_sensors_win10Core
     /// </summary>
     public sealed partial class MainPage : Page
     {
-        private ThreadPoolTimer _timer;
-        private VCNL4000_Device _sensor;
+        private readonly ThreadPoolTimer _timer;
+        private I2cDevice _proximitySensor;
 
         public MainPage()
         {
@@ -43,7 +43,9 @@ namespace pi_sensors_win10Core
             // set Lightning provider as the default
             LowLevelDevicesController.DefaultProvider = LightningProvider.GetAggregateProvider();
 
-            _sensor = new VCNL4000_Device();
+            var proximitySensorProvider = new VCNL4000_Provider();
+
+            _proximitySensor = proximitySensorProvider.GetSensor();
 
             _timer = ThreadPoolTimer.CreatePeriodicTimer(Timer_Tick, TimeSpan.FromMilliseconds(1000));
 
@@ -52,6 +54,9 @@ namespace pi_sensors_win10Core
 
         private void Timer_Tick(ThreadPoolTimer timer)
         {
+            byte[] buffer = new byte[8];
+
+            _proximitySensor.Read(buffer);
             
         }
     }
