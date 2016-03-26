@@ -8,6 +8,8 @@
     mc:Ignorable="d">
 
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <TextBlock x:Name="statusMessages" HorizontalAlignment="Center" TextWrapping="Wrap" Text="No Messages to display..." VerticalAlignment="Center"/>
+        <Button x:Name="exitButton" Content="Exit" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,100,0,0" Click="exitButton_Click"/>
 
     </Grid>
 </Page>

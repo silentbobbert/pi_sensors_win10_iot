@@ -113,7 +113,7 @@ LightningI2cDeviceProvider::LightningI2cDeviceProvider(ProviderI2cConnectionSett
     hr = _i2cTransaction->setAddress(_ConnectionSettings->SlaveAddress);
     if (FAILED(hr))
     {
-        LightningProvider::ThrowError(hr, L"Could not set i2c salve address.");
+        LightningProvider::ThrowError(hr, L"Could not set i2c slave address.");
     }
 
     if (_ConnectionSettings->BusSpeed == ProviderI2cBusSpeed::FastMode)
