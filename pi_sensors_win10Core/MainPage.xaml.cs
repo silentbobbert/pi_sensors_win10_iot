@@ -1,11 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Threading.Tasks;
 using Windows.Devices.Enumeration;
 using Windows.Devices.I2c;
-using Windows.System.Threading;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Iot.Common;
@@ -17,11 +15,10 @@ namespace pi_sensors_win10Core
     public sealed partial class MainPage : Page
     {
         // ReSharper disable once NotAccessedField.Local
-        private ThreadPoolTimer _vcnl4000Timer;
-
         private readonly Logger _logger;
-
         private Dictionary<string, ICommonI2CDevice> _devices;
+        private Action<string> _logInfoAction;
+        private Action<string, Exception> _logIErrorAction;
 
         public MainPage()
         {
@@ -29,83 +26,68 @@ namespace pi_sensors_win10Core
 
             Unloaded += MainPage_Unloaded;
 
-            Action<string> logInfoAction = (message) =>
+            _logInfoAction = (message) =>
             {
                 //statusMessages.Text = message;
-                Debug.Write(message);
+                Debug.WriteLine(message);
             };
 
-            Action<string, Exception> logIErrorAction = (message, exception) =>
+            _logIErrorAction = (message, exception) =>
             {
                 //statusMessages.Text = $"{message} - {exception.Message}";
-                Debug.Write($"{message} - {exception.Message}");
+                Debug.WriteLine($"{message} - {exception.Message}");
             };
 
-            _logger = new Logger(logInfoAction, logIErrorAction);
+            _logger = new Logger(_logInfoAction, _logIErrorAction);
 
             _devices = new Dictionary<string, ICommonI2CDevice>();
 
-            Task.Factory.StartNew(async () => await InitI2cVCNL4000());
+            Task.Factory.StartNew(async () => await InitI2cVCNL4000()
+                .ContinueWith(t => 
+                    _devices.ForEach(d => d.Value.Start())
+            ));
         }
-
         // ReSharper disable once InconsistentNaming
         private async Task InitI2cVCNL4000()
         {
             const string busName = "I2C1";
             var bus = await FindController(busName);
             var device = await FindDevice(bus, VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode());
-            _devices.Add(DeviceName(busName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode()), new VCNL4000Device(_logger, device, 20));
 
-            FindProximity();
-            _vcnl4000Timer = ThreadPoolTimer.CreatePeriodicTimer(vcnl400_TimerTick, TimeSpan.FromMilliseconds(1000));
+            IVCNL4000Device vcnl4000 = new VCNL4000Device(device, 20);
+            vcnl4000.ProximityReceived += ProximityReceived_Handler;
+            vcnl4000.AmbientLightReceived += Vcnl4000_AmbientLightReceived;
+            vcnl4000.SensorException += SensorException_Handler;
+
+            _devices.Add(DeviceName(busName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode()), vcnl4000);
         }
-
+        private void Vcnl4000_AmbientLightReceived(object sender, AmbientLightEventArgs e)
+        {
+            _logInfoAction($"Ambient Light Received: {e.RawValue}");
+        }
+        private void ProximityReceived_Handler(object sender, ProximtyEventArgs e)
+        {
+            _logInfoAction($"Proximity Received: {e.RawValue}");
+        }
+        private void SensorException_Handler(object sender, ExceptionEventArgs e)
+        {
+            _logIErrorAction($"Error Received from Sensor : \"{e.Message} \"", e.Exception);
+        }
         private string DeviceName(string busName, byte slaveAddress)
         {
             
             var name = $"{busName}\\0x{slaveAddress:x8}";
             return name;
         }
-
         private void MainPage_Unloaded(object sender, RoutedEventArgs e)
         {
             _devices.ForEach(d => d.Value.Dispose());
         }
-
-        private void vcnl400_TimerTick(ThreadPoolTimer timer)
-        {
-            FindProximity();
-        }
-
-        private void FindProximity()
-        {
-            try
-            {
-                if (!_devices.Any()) return;
-
-                var deviceKey = DeviceName("I2C1", (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode());
-
-                if (!_devices.ContainsKey(deviceKey)) return;
-
-
-                var sensor = _devices[deviceKey] as VCNL4000Device;
-                if (sensor != null)
-                {
-                    _logger.LogInfo($"Proximity Reading: {sensor.Proximity}");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogException("An error occured reading the proximity", ex);
-            }
-
-        }
-
         private void exitButton_Click(object sender, RoutedEventArgs e)
         {
+            _devices.ForEach(d => d.Value.Dispose());
             Application.Current.Exit();
         }
-
         private async Task<DeviceInformation> FindController(string busName)
         {
             var aqs = I2cDevice.GetDeviceSelector(busName);                     /* Get a selector string that will return all I2C controllers on the system */
@@ -115,7 +97,6 @@ namespace pi_sensors_win10Core
             _logger.LogException("No I2C controllers were found on the system", new Exception("Unexpected Error"));
             return null;
         }
-
         private async Task<I2cDevice> FindDevice(DeviceInformation bus, int slaveAddress)
         {
             var settings = new I2cConnectionSettings(slaveAddress)

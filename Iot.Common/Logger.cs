@@ -18,14 +18,14 @@ namespace Iot.Common
         public void LogInfo(string message)
         {
             message = MessageFormatter(message);
-            System.Diagnostics.Debug.Write(message);
+            System.Diagnostics.Debug.WriteLine(message);
             _logInfoMethod(message);
         }
 
         public void LogException(string message, Exception exception)
         {
             var formattedMessage = MessageFormatter(message, exception.Message);
-            System.Diagnostics.Debug.Write(formattedMessage);
+            System.Diagnostics.Debug.WriteLine(formattedMessage);
             _logErrorMethod(message, exception);
         }
 
