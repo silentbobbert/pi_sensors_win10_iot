@@ -1,9 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
+using Windows.ApplicationModel;
+using Windows.ApplicationModel.Core;
 using Windows.Devices.Enumeration;
 using Windows.Devices.I2c;
+using Windows.System.Threading;
+using Windows.UI.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Iot.Common;
@@ -19,6 +24,10 @@ namespace pi_sensors_win10Core
         private Dictionary<string, ICommonI2CDevice> _devices;
         private Action<string> _logInfoAction;
         private Action<string, Exception> _logIErrorAction;
+        private ThreadPoolTimer _simulatorTimer;
+        private DateTime? _lastExceptionReceived;
+
+        private ThreadPoolTimer _uiCleanUp;
 
         public MainPage()
         {
@@ -28,24 +37,78 @@ namespace pi_sensors_win10Core
 
             _logInfoAction = (message) =>
             {
-                //statusMessages.Text = message;
                 Debug.WriteLine(message);
             };
 
             _logIErrorAction = (message, exception) =>
             {
-                //statusMessages.Text = $"{message} - {exception.Message}";
-                Debug.WriteLine($"{message} - {exception.Message}");
+                message = $"{message} - {exception.Message}";
+                Debug.WriteLine(message);
             };
+
+            _lastExceptionReceived = Now.AddDays(-1);
+            _uiCleanUp = ThreadPoolTimer.CreatePeriodicTimer(uiCleanUp_Tick, TimeSpan.FromSeconds(10));
 
             _logger = new Logger(_logInfoAction, _logIErrorAction);
 
             _devices = new Dictionary<string, ICommonI2CDevice>();
 
             Task.Factory.StartNew(async () => await InitI2cVCNL4000()
+                .ContinueWith(async t => await InitSimulator())
                 .ContinueWith(t => 
                     _devices.ForEach(d => d.Value.Start())
             ));
+        }
+
+        private void uiCleanUp_Tick(ThreadPoolTimer timer)
+        {
+            if (Now.Subtract(_lastExceptionReceived.GetValueOrDefault()).TotalMilliseconds > 2900)
+            {
+                UpdateErrorMessageBox("No Recent Exceptions Received");
+            }
+        }
+
+        private async Task InitSimulator()
+        {
+            // get the package architecure
+            var package = Package.Current;
+            var systemArchitecture = package.Id.Architecture.ToString();
+
+            if (systemArchitecture.ToUpper().Contains("ARM")) return; //Dont simulate on ARM device - likely to be real device with real sensors!
+
+            const string busName = "I2C1";
+
+            IVCNL4000Device fakevcnl4000 = new SimulatedVcnl4000();
+            fakevcnl4000.ProximityReceived += ProximityReceived_Handler;
+            fakevcnl4000.AmbientLightReceived += Vcnl4000_AmbientLightReceived;
+            fakevcnl4000.SensorException += SensorException_Handler;
+
+            await Task.Run(() => _devices.Add(DeviceName(busName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode()), fakevcnl4000));
+        }
+
+        private async Task UpdateProximityMessageBox(string message)
+        {
+            await CoreApplication.MainView.CoreWindow.Dispatcher.RunAsync(CoreDispatcherPriority.Normal,
+                    () =>
+                    {
+                        proximityMessages.Text = message;
+                    });
+        }
+        private async Task UpdateAmbientMessageBox(string message)
+        {
+            await CoreApplication.MainView.CoreWindow.Dispatcher.RunAsync(CoreDispatcherPriority.Normal,
+                    () =>
+                    {
+                        ambientMessages.Text = message;
+                    });
+        }
+        private async Task UpdateErrorMessageBox(string message)
+        {
+            await CoreApplication.MainView.CoreWindow.Dispatcher.RunAsync(CoreDispatcherPriority.Normal,
+                    () =>
+                    {
+                        errorMessages.Text = message;
+                    });
         }
         // ReSharper disable once InconsistentNaming
         private async Task InitI2cVCNL4000()
@@ -54,7 +117,14 @@ namespace pi_sensors_win10Core
             var bus = await FindController(busName);
             var device = await FindDevice(bus, VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode());
 
-            IVCNL4000Device vcnl4000 = new VCNL4000Device(device, 20);
+            var initSettings = new VCNL4000Settings
+            {
+                IrCurrent_mA = 20,
+                SensorTimeOut = 300,
+                SensorPollInterval = 500
+            };
+
+            IVCNL4000Device vcnl4000 = new VCNL4000Device(device, initSettings);
             vcnl4000.ProximityReceived += ProximityReceived_Handler;
             vcnl4000.AmbientLightReceived += Vcnl4000_AmbientLightReceived;
             vcnl4000.SensorException += SensorException_Handler;
@@ -63,16 +133,26 @@ namespace pi_sensors_win10Core
         }
         private void Vcnl4000_AmbientLightReceived(object sender, AmbientLightEventArgs e)
         {
-            _logInfoAction($"Ambient Light Received: {e.RawValue}");
+            var message = $"Ambient Light Received: {e.RawValue}";
+            UpdateAmbientMessageBox(message);
+            _logInfoAction(message);
         }
         private void ProximityReceived_Handler(object sender, ProximtyEventArgs e)
         {
-            _logInfoAction($"Proximity Received: {e.RawValue}");
+            var message = $"Proximity Received: {e.RawValue}";
+            UpdateProximityMessageBox(message);
+            _logInfoAction(message);
         }
         private void SensorException_Handler(object sender, ExceptionEventArgs e)
         {
+            _lastExceptionReceived = Now;
+            var message = $"Error Received from Sensor : \"{e.Message} \"";
+            UpdateErrorMessageBox(message);
             _logIErrorAction($"Error Received from Sensor : \"{e.Message} \"", e.Exception);
         }
+
+        public DateTime Now => DateTime.Now;
+
         private string DeviceName(string busName, byte slaveAddress)
         {
             

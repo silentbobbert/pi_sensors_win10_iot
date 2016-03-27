@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading;
+using System.Threading.Tasks;
 using Windows.Devices.I2c;
 using Windows.System.Threading;
 using Iot.Common.Utils;
@@ -10,14 +11,20 @@ namespace VCNL4000Adapter
     {
         private readonly I2cDevice _device;
         private ThreadPoolTimer _vcnl4000Timer;
+        private readonly int _sensorTimeOut;
+        private readonly int _sensorPollInterval;
         public event EventHandler<ProximtyEventArgs> ProximityReceived;
         public event EventHandler<ExceptionEventArgs> SensorException;
         public event EventHandler<AmbientLightEventArgs> AmbientLightReceived;
 
-        public VCNL4000Device(I2cDevice device, byte irCurrent_mA = 20)
+        public VCNL4000Device(I2cDevice device, VCNL4000Settings settings)
         {
             _device = device;
-            SetCurrentOnIRLED(irCurrent_mA);
+
+            SetCurrentOnIRLED(settings.IrCurrent_mA);
+            _sensorTimeOut = settings.SensorTimeOut;
+            _sensorPollInterval = settings.SensorPollInterval;
+
         }
         /// <summary>
         /// According to the documentation for the VCNL4000 the current value is passed in dec as oppose to hex, and the value you provide is multiplied by 10.
@@ -45,15 +52,14 @@ namespace VCNL4000Adapter
         private int RawAmbientLight {
             get
             {
-                //RequestSensorToReadAmbientLight();
-                SpinWait.SpinUntil(() => AmbientLightReady, TimeSpan.FromMilliseconds(500));
+                SpinWait.SpinUntil(() => AmbientLightReady, TimeSpan.FromMilliseconds(_sensorTimeOut));
 
                 if (!AmbientLightReady)
                 {
                     SensorException?.Invoke(this, new ExceptionEventArgs
                     {
                         Exception = new Exception("Sensor did not respond in an appropriate time period."),
-                        Message = "An Error Occured reading the Am Results registers."
+                        Message = "An Error Occured reading the Ambient Light Results registers."
                     });
                 }
 
@@ -83,27 +89,11 @@ namespace VCNL4000Adapter
             }
             return -1;
         }
-        private void RequestSensorToReadAmbientLight()
-        {
-            try
-            {
-                WriteCommandToCommandRegister((byte)VCNL4000_Constants.VCNL4000_MEASUREAMBIENT.GetHashCode());
-            }
-            catch (Exception ex)
-            {
-                SensorException?.Invoke(this, new ExceptionEventArgs
-                {
-                    Exception = ex,
-                    Message = "An Error Occured writing the request to read the Ambient Light."
-                });
-            }
-        }
         private int RawProximity
         {
             get
             {
-                //RequestSensorToReadProximity();
-                SpinWait.SpinUntil(() => ProximityReady, TimeSpan.FromMilliseconds(500));
+                SpinWait.SpinUntil(() => ProximityReady, TimeSpan.FromMilliseconds(_sensorTimeOut));
 
                 if (!ProximityReady)
                 {
@@ -139,22 +129,6 @@ namespace VCNL4000Adapter
             }
             return -1;
         }
-        private void RequestSensorToReadProximity()
-        {
-            try
-            {
-                WriteCommandToCommandRegister((byte)VCNL4000_Constants.VCNL4000_MEASUREPROXIMITY.GetHashCode());
-            }
-            catch (Exception ex)
-            {
-                SensorException?.Invoke(this, new ExceptionEventArgs
-                {
-                    Exception = ex,
-                    Message = "An Error Occured writing the request to read the proximity."
-                });
-            }
-        }
-
         private void RequestSensorToStartCollectingData()
         {
             try
@@ -172,7 +146,6 @@ namespace VCNL4000Adapter
                 });
             }
         }
-
         private void WriteCommandToCommandRegister(byte commandToWriteToCommandRegister)
         {
             var commandRegister = ReadCommandRegister(); //Get current state of Command register so we dont just blat whats already there.
@@ -191,16 +164,35 @@ namespace VCNL4000Adapter
         }
         public void Start()
         {
-            _vcnl4000Timer = ThreadPoolTimer.CreatePeriodicTimer(vcnl400_TimerTick, TimeSpan.FromMilliseconds(2000));
+            _vcnl4000Timer = ThreadPoolTimer.CreatePeriodicTimer(vcnl400_TimerTick, TimeSpan.FromMilliseconds(_sensorPollInterval));
         }
         private void vcnl400_TimerTick(ThreadPoolTimer timer)
         {
             RequestSensorToStartCollectingData();
-            var proximityArgs = new ProximtyEventArgs { RawValue = RawProximity };
-            ProximityReceived?.Invoke(this, proximityArgs);
 
-            var ambientLightEventArgs = new AmbientLightEventArgs { RawValue = RawAmbientLight };
-            AmbientLightReceived?.Invoke(this, ambientLightEventArgs);
+            TakeProximityMeasurements()
+                .ContinueWith(t => TakeAmbientMeasurements());
+            
+        }
+        private Task TakeProximityMeasurements()
+        {
+            var proxTask = Task.Factory.StartNew(() =>
+            {
+                var proximityArgs = new ProximtyEventArgs { RawValue = RawProximity };
+                ProximityReceived?.Invoke(this, proximityArgs);
+            });
+
+            return proxTask;
+        }
+        private Task TakeAmbientMeasurements()
+        {
+            var ambTask = Task.Factory.StartNew(() =>
+            {
+                var ambientLightEventArgs = new AmbientLightEventArgs { RawValue = RawAmbientLight };
+                AmbientLightReceived?.Invoke(this, ambientLightEventArgs);
+            });
+
+            return ambTask;
         }
         private bool ProximityReady
         {

@@ -111,9 +111,10 @@
     <Compile Include="ExceptionEventArgs.cs" />
     <Compile Include="IVCNL4000Device.cs" />
     <Compile Include="ProximityEventArgs.cs" />
+    <Compile Include="Simulated_VCNL4000.cs" />
     <Compile Include="VCNL4000Device.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Proximity.cs" />
+    <Compile Include="VCNL4000Settings.cs" />
     <Compile Include="VCNL4000_Constants.cs" />
     <EmbeddedResource Include="Properties\VCNL4000Adapter.rd.xml" />
   </ItemGroup>
