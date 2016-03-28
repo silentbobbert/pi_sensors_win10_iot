@@ -7,7 +7,8 @@ namespace VCNL4000Adapter
         public byte IrCurrent_mA { get; set; }
         public int SensorTimeOut { get; set; }
         public int SensorPollInterval { get; set; }
-        public decimal Dx { get; set; }
-        public decimal Dy { get; set; }
+        public double FirstPolynomial { get; set; }
+        public double SecondPolynomial { get; set; }
+        public double Dy { get; set; }
     }
 }

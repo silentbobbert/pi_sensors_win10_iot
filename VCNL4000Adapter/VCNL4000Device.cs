@@ -26,7 +26,7 @@ namespace VCNL4000Adapter
             SetCurrentOnIRLED(settings.IrCurrent_mA);
             _sensorTimeOut = settings.SensorTimeOut;
             _sensorPollInterval = settings.SensorPollInterval;
-            _proximityConverter = new ProximityConverter(settings.Dx, settings.Dy);
+            _proximityConverter = new ProximityConverter(settings.FirstPolynomial, settings.SecondPolynomial, settings.Dy);
 
         }
         /// <summary>
