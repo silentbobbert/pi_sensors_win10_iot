@@ -20,9 +20,7 @@
         VCNL4000_MEASUREAMBIENT = 0x10,
         VCNL4000_MEASUREPROXIMITY = 0x08,
         VCNL4000_AMBIENTREADY = 0x40,
-        VCNL4000_PROXIMITYREADY = 0x20,
-        dx = 5250,
-        dy = 2370
+        VCNL4000_PROXIMITYREADY = 0x20
     }
     // ReSharper enable InconsistentNaming
 }

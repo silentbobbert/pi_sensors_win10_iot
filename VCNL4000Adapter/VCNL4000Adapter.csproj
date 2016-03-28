@@ -110,6 +110,7 @@
     <Compile Include="AmbientLightEventArgs.cs" />
     <Compile Include="ExceptionEventArgs.cs" />
     <Compile Include="IVCNL4000Device.cs" />
+    <Compile Include="ProximityConverter.cs" />
     <Compile Include="ProximityEventArgs.cs" />
     <Compile Include="Simulated_VCNL4000.cs" />
     <Compile Include="VCNL4000Device.cs" />

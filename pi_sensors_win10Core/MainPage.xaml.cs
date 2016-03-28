@@ -121,7 +121,9 @@ namespace pi_sensors_win10Core
             {
                 IrCurrent_mA = 20,
                 SensorTimeOut = 300,
-                SensorPollInterval = 500
+                SensorPollInterval = 500,
+                Dx = 5250,
+                Dy = 2730
             };
 
             IVCNL4000Device vcnl4000 = new VCNL4000Device(device, initSettings);
@@ -139,7 +141,7 @@ namespace pi_sensors_win10Core
         }
         private void ProximityReceived_Handler(object sender, ProximtyEventArgs e)
         {
-            var message = $"Proximity Received: {e.RawValue}";
+            var message = $"Proximity Received - Raw Value {e.RawValue} & Approximate Distance in mm {e.Proximity}";
             UpdateProximityMessageBox(message);
             _logInfoAction(message);
         }

@@ -13,10 +13,12 @@ namespace VCNL4000Adapter
         private ThreadPoolTimer _vcnl4000Timer;
         private readonly int _sensorTimeOut;
         private readonly int _sensorPollInterval;
+        private readonly ProximityConverter _proximityConverter;
+
         public event EventHandler<ProximtyEventArgs> ProximityReceived;
         public event EventHandler<ExceptionEventArgs> SensorException;
         public event EventHandler<AmbientLightEventArgs> AmbientLightReceived;
-
+        
         public VCNL4000Device(I2cDevice device, VCNL4000Settings settings)
         {
             _device = device;
@@ -24,6 +26,7 @@ namespace VCNL4000Adapter
             SetCurrentOnIRLED(settings.IrCurrent_mA);
             _sensorTimeOut = settings.SensorTimeOut;
             _sensorPollInterval = settings.SensorPollInterval;
+            _proximityConverter = new ProximityConverter(settings.Dx, settings.Dy);
 
         }
         /// <summary>
@@ -178,7 +181,12 @@ namespace VCNL4000Adapter
         {
             var proxTask = Task.Factory.StartNew(() =>
             {
-                var proximityArgs = new ProximtyEventArgs { RawValue = RawProximity };
+                var rawProximity = RawProximity;
+                var proximityArgs = new ProximtyEventArgs
+                {
+                    RawValue = rawProximity,
+                    Proximity = _proximityConverter.GetDistance(rawProximity)
+                };
                 ProximityReceived?.Invoke(this, proximityArgs);
             });
 
@@ -199,7 +207,7 @@ namespace VCNL4000Adapter
             get
             {
                 /*
-                 * "10100000" = 0xA0
+                 * "1010 0000" = 0xA0
                  * Bit  7(0) - Config_lock - Ignore
                  * Bit  6(1) - als_data_rdy - Ambient Light sensor ready
                  * Bit  5(2) - prox_data_rdy - Promimity Data ready
@@ -209,9 +217,8 @@ namespace VCNL4000Adapter
                  * Bit  1(6) - N/A    
                  * Bit  0(7) - N/A               
                  */
-
-                var register = ReadCommandRegister().ConvertByteToBitArray();
-                return register[2] == '1';
+                var result = ReadCommandRegister().FlagIsTrue(2);
+                return result;
             }
         }
         private bool AmbientLightReady
@@ -219,7 +226,7 @@ namespace VCNL4000Adapter
             get
             {
                 /*
-                 * "10100000" = 0xA0
+                 * "1010 0000" = 0xA0
                  * Bit  7(0) - Config_lock - Ignore
                  * Bit  6(1) - als_data_rdy - Ambient Light sensor ready
                  * Bit  5(2) - prox_data_rdy - Promimity Data ready
@@ -229,8 +236,8 @@ namespace VCNL4000Adapter
                  * Bit  1(6) - N/A    
                  * Bit  0(7) - N/A               
                  */
-                var register = ReadCommandRegister().ConvertByteToBitArray();
-                return register[1] == '1';
+                var result = ReadCommandRegister().FlagIsTrue(1);
+                return result;
             }
         }
     }
