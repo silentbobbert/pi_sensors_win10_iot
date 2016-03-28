@@ -11,6 +11,7 @@ using Windows.System.Threading;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
+using ADS1115Adapter;
 using Iot.Common;
 using Iot.Common.Utils;
 using VCNL4000Adapter;
@@ -54,6 +55,7 @@ namespace pi_sensors_win10Core
             _devices = new Dictionary<string, ICommonI2CDevice>();
 
             Task.Factory.StartNew(async () => await InitI2cVCNL4000()
+                .ContinueWith(async t => await InitI2cADS1115())
                 .ContinueWith(async t => await InitSimulator())
                 .ContinueWith(t => 
                     _devices.ForEach(d => d.Value.Start())
@@ -134,6 +136,23 @@ namespace pi_sensors_win10Core
 
             _devices.Add(DeviceName(busName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode()), vcnl4000);
         }
+
+        private async Task InitI2cADS1115()
+        {
+            const string busName = "I2C1";
+            var bus = await FindController(busName);
+            var device = await FindDevice(bus, ADS1115_Constants.ADS1115_ADDRESS.GetHashCode());
+            
+            IADS1115Device ads1115 = new ADS1115Device(device);
+            //vcnl4000.ProximityReceived += ProximityReceived_Handler;
+            //vcnl4000.AmbientLightReceived += Vcnl4000_AmbientLightReceived;
+            //vcnl4000.SensorException += SensorException_Handler;
+
+            _devices.Add(DeviceName(busName, (byte)ADS1115_Constants.ADS1115_ADDRESS.GetHashCode()), ads1115);
+        }
+
+
+
         private void Vcnl4000_AmbientLightReceived(object sender, AmbientLightEventArgs e)
         {
             var message = $"Ambient Light Received: {e.RawValue}";
