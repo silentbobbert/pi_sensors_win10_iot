@@ -54,12 +54,18 @@ namespace pi_sensors_win10Core
 
             _devices = new Dictionary<string, ICommonI2CDevice>();
 
-            Task.Factory.StartNew(async () => await InitI2cVCNL4000()
-                .ContinueWith(async t => await InitI2cADS1115())
-                .ContinueWith(async t => await InitSimulator())
-                .ContinueWith(t => 
+            //Task.Factory.StartNew(async () => await InitI2cVCNL4000()
+            //    .ContinueWith(async t => await InitI2cADS1115())
+            //    .ContinueWith(async t => await InitSimulator())
+            //    .ContinueWith(t => 
+            //        _devices.ForEach(d => d.Value.Start())
+            //));
+
+            Task.Factory.StartNew(async () => await InitI2cADS1115()
+                .ContinueWith(t =>
                     _devices.ForEach(d => d.Value.Start())
             ));
+
         }
 
         private void uiCleanUp_Tick(ThreadPoolTimer timer)
