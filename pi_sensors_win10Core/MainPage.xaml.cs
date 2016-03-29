@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Threading;
 using System.Threading.Tasks;
 using Windows.ApplicationModel;
 using Windows.ApplicationModel.Core;
@@ -54,17 +53,17 @@ namespace pi_sensors_win10Core
 
             _devices = new Dictionary<string, ICommonI2CDevice>();
 
-            //Task.Factory.StartNew(async () => await InitI2cVCNL4000()
-            //    .ContinueWith(async t => await InitI2cADS1115())
-            //    .ContinueWith(async t => await InitSimulator())
-            //    .ContinueWith(t => 
-            //        _devices.ForEach(d => d.Value.Start())
-            //));
-
-            Task.Factory.StartNew(async () => await InitI2cADS1115()
+            Task.Factory.StartNew(async () => await InitI2cVCNL4000()
+                .ContinueWith(async t => await InitI2cADS1115())
+                .ContinueWith(async t => await InitSimulator())
                 .ContinueWith(t =>
                     _devices.ForEach(d => d.Value.Start())
             ));
+
+            //Task.Factory.StartNew(async () => await InitI2cADS1115()
+            //    .ContinueWith(t =>
+            //        _devices.ForEach(d => d.Value.Start())
+            //));
 
         }
 
@@ -150,14 +149,24 @@ namespace pi_sensors_win10Core
             var device = await FindDevice(bus, ADS1115_Constants.ADS1115_ADDRESS.GetHashCode());
             
             IADS1115Device ads1115 = new ADS1115Device(device);
-            //vcnl4000.ProximityReceived += ProximityReceived_Handler;
-            //vcnl4000.AmbientLightReceived += Vcnl4000_AmbientLightReceived;
-            //vcnl4000.SensorException += SensorException_Handler;
-
+            ads1115.ChannelOneReady += Ads1115_ChannelOneReady;
             _devices.Add(DeviceName(busName, (byte)ADS1115_Constants.ADS1115_ADDRESS.GetHashCode()), ads1115);
         }
 
-
+        private void Ads1115_ChannelOneReady(object sender, ChannelOneReadingDone e)
+        {
+            var message = $"Channel One Message Received - Raw Value {e.RawValue}";
+            UpdateChannelOneMessage(message);
+            _logInfoAction(message);
+        }
+        private async Task UpdateChannelOneMessage(string message)
+        {
+            await CoreApplication.MainView.CoreWindow.Dispatcher.RunAsync(CoreDispatcherPriority.Normal,
+                    () =>
+                    {
+                        channelOneMessages.Text = message;
+                    });
+        }
 
         private void Vcnl4000_AmbientLightReceived(object sender, AmbientLightEventArgs e)
         {
