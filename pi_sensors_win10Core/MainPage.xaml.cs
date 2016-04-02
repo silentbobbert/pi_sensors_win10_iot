@@ -13,12 +13,16 @@ using Windows.UI.Xaml.Controls;
 using ADS1115Adapter;
 using Iot.Common;
 using Iot.Common.Utils;
+using Sharp2Y0A21;
 using VCNL4000Adapter;
 
 namespace pi_sensors_win10Core
 {
     public sealed partial class MainPage : Page
     {
+        private const double SharpConversionFactor = 4221057.491;
+        private const double SharpExponent = 1.26814;
+
         // ReSharper disable once NotAccessedField.Local
         private readonly Logger _logger;
         private Dictionary<string, ICommonI2CDevice> _devices;
@@ -26,6 +30,7 @@ namespace pi_sensors_win10Core
         private Action<string, Exception> _logIErrorAction;
         private ThreadPoolTimer _simulatorTimer;
         private DateTime? _lastExceptionReceived;
+        private RawValueConverter _sharpSensorConverter;
 
         private ThreadPoolTimer _uiCleanUp;
 
@@ -52,6 +57,8 @@ namespace pi_sensors_win10Core
             _logger = new Logger(_logInfoAction, _logIErrorAction);
 
             _devices = new Dictionary<string, ICommonI2CDevice>();
+            
+            _sharpSensorConverter = new RawValueConverter(SharpConversionFactor, SharpExponent);
 
             Task.Factory.StartNew(async () => await InitI2cVCNL4000()
                 .ContinueWith(async t => await InitI2cADS1115())
@@ -149,13 +156,14 @@ namespace pi_sensors_win10Core
             var device = await FindDevice(bus, ADS1115_Constants.ADS1115_ADDRESS.GetHashCode());
             
             IADS1115Device ads1115 = new ADS1115Device(device);
-            ads1115.ChannelOneReady += Ads1115_ChannelOneReady;
+            ads1115.ChannelChanged += Ads1115ChannelChanged;
             _devices.Add(DeviceName(busName, (byte)ADS1115_Constants.ADS1115_ADDRESS.GetHashCode()), ads1115);
         }
 
-        private void Ads1115_ChannelOneReady(object sender, ChannelOneReadingDone e)
+        private void Ads1115ChannelChanged(object sender, ChannelReadingDone e)
         {
-            var message = $"Channel One Message Received - Raw Value {e.RawValue}";
+            var convertedDistance = _sharpSensorConverter.Convert(e.RawValue);
+            var message = $"Channel {e.Channel+1} Message Received - Raw Value {e.RawValue} - Converted Distance {convertedDistance:F2} mm";
             UpdateChannelOneMessage(message);
             _logInfoAction(message);
         }

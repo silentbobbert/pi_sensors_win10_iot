@@ -140,6 +140,10 @@
       <Project>{5692bfa7-5684-4c8c-9d35-c83b3f09307b}</Project>
       <Name>Iot.Common</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Sharp2Y0A21\Sharp2Y0A21.csproj">
+      <Project>{5374B978-4C7C-4D0F-B140-38D131829812}</Project>
+      <Name>Sharp2Y0A21</Name>
+    </ProjectReference>
     <ProjectReference Include="..\VCNL4000Adapter\VCNL4000Adapter.csproj">
       <Project>{fad1607d-00dd-418b-8b49-ffd074893ca9}</Project>
       <Name>VCNL4000Adapter</Name>

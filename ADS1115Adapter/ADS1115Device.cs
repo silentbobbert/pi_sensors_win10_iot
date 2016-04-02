@@ -9,7 +9,8 @@ namespace ADS1115Adapter
 {
     public class ADS1115Device : IADS1115Device
     {
-        public event EventHandler<ChannelOneReadingDone> ChannelOneReady;
+        public event EventHandler<ChannelReadingDone> ChannelChanged;
+
         private I2cDevice ads1115;
         private ThreadPoolTimer _ads1115Timer;
         public ADS1115Device(I2cDevice device)
@@ -25,16 +26,20 @@ namespace ADS1115Adapter
 
         public void Start()
         {
-            _ads1115Timer = ThreadPoolTimer.CreatePeriodicTimer(ads1115_tick, TimeSpan.FromMilliseconds(500));
+            _ads1115Timer = ThreadPoolTimer.CreatePeriodicTimer(ads1115_tick, TimeSpan.FromMilliseconds(250));
         }
 
         private void ads1115_tick(ThreadPoolTimer timer)
         {
-            var reading = readADC_SingleEnded(0);
-            ChannelOneReady?.Invoke(this, new ChannelOneReadingDone { RawValue = reading });
+            byte channel = 0;
+
+            readADC_SingleEnded(channel)
+                .ContinueWith(r => 
+                    ChannelChanged?.Invoke(this, new ChannelReadingDone { RawValue = r.Result, Channel = channel })
+                );
         }
 
-        private int readADC_SingleEnded(byte channel)
+        private async Task<int> readADC_SingleEnded(byte channel)
         {
             if (channel > 3)
             {
@@ -63,13 +68,13 @@ namespace ADS1115Adapter
             // Set 'start single-conversion' bit
             config |= (ushort) ADS1115_REG_CONFIG_OS_SINGLE.GetHashCode();
 
-            return GetReadingFromConverter(config);
+            return await GetReadingFromConverter(config);
         }
 
         private static ushort Set_Defaults()
         {
             // Start with default values
-            var config = (ushort) (ADS1115_REG_CONFIG_CQUE_NONE.GetHashCode() |    // Disable the comparator (default val)
+            var config = (ushort) (ADS1115_REG_CONFIG_CQUE_NONE.GetHashCode() |  // Disable the comparator (default val)
                                 ADS1115_REG_CONFIG_CLAT_NONLAT.GetHashCode() |   // Non-latching (default val)
                                 ADS1115_REG_CONFIG_CPOL_ACTVLOW.GetHashCode() |  // Alert/Rdy active low   (default val)
                                 ADS1115_REG_CONFIG_CMODE_TRAD.GetHashCode() |    // Traditional comparator (default val)
@@ -83,29 +88,22 @@ namespace ADS1115Adapter
             return config;
         }
 
-        private int GetReadingFromConverter(ushort config)
+        private async Task<int> GetReadingFromConverter(ushort config)
         {
             // Write config register to the ADC
-            byte[] pointerCommand = (new[] {(byte) ADS1015_REG_POINTER_CONFIG.GetHashCode()}).Union( BitConverter.GetBytes(config)).ToArray();
+            var pointerCommand = (new[] {(byte) ADS1015_REG_POINTER_CONFIG.GetHashCode()}).Union(BitConverter.GetBytes(config)).ToArray();
             ads1115.Write(pointerCommand);
 
             var dataBuffer = new byte[2];
 
-            Task.Delay(TimeSpan.FromMilliseconds(ADS1115_CONVERSIONDELAY.GetHashCode()))
-                .ContinueWith(async t =>
-                {
-                    await t;
-                    pointerCommand = new[] {(byte)ADS1015_REG_POINTER_CONVERT.GetHashCode()};
+            await Task.Delay(TimeSpan.FromMilliseconds(ADS1115_CONVERSIONDELAY.GetHashCode()));
 
-                    ads1115.WriteRead(pointerCommand, dataBuffer);
-                }).Wait();
-
+            pointerCommand = new[] { (byte)ADS1015_REG_POINTER_CONVERT.GetHashCode() };
+            ads1115.WriteRead(pointerCommand, dataBuffer);
 
             // Read the conversion results
             var rawReading = dataBuffer[0] << 8 | dataBuffer[1];
             return rawReading;
         }
-
-        
     }
 }

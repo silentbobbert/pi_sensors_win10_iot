@@ -6,8 +6,9 @@ using System.Threading.Tasks;
 
 namespace ADS1115Adapter
 {
-    public class ChannelOneReadingDone : EventArgs
+    public class ChannelReadingDone : EventArgs
     {
         public int RawValue { get; set; }
+        public byte Channel { get; set; }
     }
 }
