@@ -1,9 +1,7 @@
-﻿using System;
-
-namespace Iot.Common
+﻿namespace Iot.Common
 {
-    public interface ICommonI2CDevice : IDisposable
+    public interface ICommonI2CDevice : ICommonDevice
     {
-        void Start();
+
     }
 }

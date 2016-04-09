@@ -11,14 +11,15 @@ namespace Iot.Common.Utils
             var bitIsTrue = flags[bitIndex];
             return bitIsTrue;
         }
-        public static bool FlagIsTrue(this byte flagByte, int bitIndex)
+        public static bool FlagIsTrue(this byte flagByte, int bitIndex, bool reverse)
         {
-            return FlagIsTrue(new[] {flagByte}, bitIndex);
+            return FlagIsTrue(new[] {flagByte}, bitIndex, reverse);
         }
-        public static bool FlagIsTrue(this byte[] flagBytes, int bitIndex)
+        public static bool FlagIsTrue(this byte[] flagBytes, int bitIndex, bool reverse)
         {
             var flags = new BitArray(flagBytes).Cast<bool>();
-            flags = flags.Reverse();
+            if(reverse)
+                flags = flags.Reverse();
             return FlagIsTrue(flags.ToArray(), bitIndex);
         }
     }

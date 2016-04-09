@@ -42,15 +42,18 @@ namespace ADS1115Adapter
         ADS1115_REG_CONFIG_MODE_MASK =   0x0100, 
         ADS1115_REG_CONFIG_MODE_CONTIN = 0x0000, // Continuous conversion mode
         ADS1115_REG_CONFIG_MODE_SINGLE = 0x0100, // Power-down single-shot mode (default)
+     
 
-        ADS1115_REG_CONFIG_DR_MASK =     0x0E00,
-        ADS1115_REG_CONFIG_DR_128SPS =   0x0000, // 128 samples per second
-        ADS1115_REG_CONFIG_DR_250SPS =   0x0020, // 250 samples per second
-        ADS1115_REG_CONFIG_DR_490SPS =   0x0040, // 490 samples per second
-        ADS1115_REG_CONFIG_DR_920SPS =   0x0050, // 920 samples per second
-        ADS1115_REG_CONFIG_DR_1600SPS =  0x0080, // 1600 samples per second (default)
-        ADS1115_REG_CONFIG_DR_2400SPS =  0x00A0, // 2400 samples per second
-        ADS1115_REG_CONFIG_DR_3300SPS =  0x00C0, // 3300 samples per second
+        ADS1115_REG_CONFIG_DR_MASK = 0x0E00,
+        ADS1115_REG_CONFIG_DR_8SPS = 0x0000,
+        ADS1115_REG_CONFIG_DR_16SPS = 0x0020,
+        ADS1115_REG_CONFIG_DR_32SPS = 0x0040,
+        ADS1115_REG_CONFIG_DR_64SPS = 0x0060,
+        ADS1115_REG_CONFIG_DR_128SPS = 0x0080,
+        ADS1115_REG_CONFIG_DR_250SPS = 0x00A0,
+        ADS1115_REG_CONFIG_DR_475SPS = 0x00C0,
+        ADS1115_REG_CONFIG_DR_860SPS = 0x00E0,
+
 
         ADS1115_REG_CONFIG_CMODE_MASK =      0x0010, 
         ADS1115_REG_CONFIG_CMODE_TRAD =      0x0000, // Traditional comparator with hysteresis (default)

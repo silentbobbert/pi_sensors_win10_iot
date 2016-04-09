@@ -8,12 +8,18 @@
     mc:Ignorable="d">
 
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-        <TextBlock x:Name="proximityMessages" HorizontalAlignment="Center" TextWrapping="Wrap" Text="No Messages to display..." VerticalAlignment="Center"/>
-        <TextBlock x:Name="ambientMessages" HorizontalAlignment="Center" TextWrapping="Wrap" Text="No Messages to display..." Margin="0,50,0,0" VerticalAlignment="Center"/>
-        <TextBlock x:Name="errorMessages" HorizontalAlignment="Center" TextWrapping="Wrap" Text="No Messages to display..." Margin="0,100,0,0" VerticalAlignment="Center"/>
+        <TextBlock x:Name="proximityMessages" HorizontalAlignment="Center" TextWrapping="Wrap" Text="No Proximity Messages to display..." VerticalAlignment="Center"/>
+        <TextBlock x:Name="ambientMessages" HorizontalAlignment="Center" TextWrapping="Wrap" Text="No Ambient Messages to display..." Margin="0,50,0,0" VerticalAlignment="Center"/>
+        <TextBlock x:Name="errorMessages" HorizontalAlignment="Center" TextWrapping="Wrap" Text="No Error Messages to display..." Margin="0,100,0,0" VerticalAlignment="Center"/>
+        <TextBlock x:Name="sonarMessages" HorizontalAlignment="Center" TextWrapping="Wrap" Text="No Sonar Messages to display..." Margin="0,-200,0,0" VerticalAlignment="Center"/>
 
 
-        <TextBlock x:Name="channelOneMessages" HorizontalAlignment="Center" TextWrapping="Wrap" Text="No Messages to display..." Margin="0,250,0,0" VerticalAlignment="Center"/>
+        <TextBlock x:Name="channelOneMessages" HorizontalAlignment="Center" TextWrapping="Wrap" Text="No Channel 1 Messages to display..." Margin="0,200,0,0" VerticalAlignment="Center"/>
+        <TextBlock x:Name="channelTwoMessages" HorizontalAlignment="Center" TextWrapping="Wrap" Text="No Channel 2 Messages to display..." Margin="0,230,0,0" VerticalAlignment="Center"/>
+        <TextBlock x:Name="channelThreeMessages" HorizontalAlignment="Center" TextWrapping="Wrap" Text="No Channel 3 Messages to display..." Margin="0,260,0,0" VerticalAlignment="Center"/>
+        <TextBlock x:Name="channelFourMessages" HorizontalAlignment="Center" TextWrapping="Wrap" Text="No Channel 4 Messages to display..." Margin="0,290,0,0" VerticalAlignment="Center"/>
+        
+        
         <Button x:Name="exitButton" Content="Exit" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,50" Click="exitButton_Click"/>
 
     </Grid>

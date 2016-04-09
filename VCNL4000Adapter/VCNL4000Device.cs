@@ -217,7 +217,7 @@ namespace VCNL4000Adapter
                  * Bit  1(6) - N/A    
                  * Bit  0(7) - N/A               
                  */
-                var result = ReadCommandRegister().FlagIsTrue(2);
+                var result = ReadCommandRegister().FlagIsTrue(2, true);
                 return result;
             }
         }
@@ -236,7 +236,7 @@ namespace VCNL4000Adapter
                  * Bit  1(6) - N/A    
                  * Bit  0(7) - N/A               
                  */
-                var result = ReadCommandRegister().FlagIsTrue(1);
+                var result = ReadCommandRegister().FlagIsTrue(1, true);
                 return result;
             }
         }

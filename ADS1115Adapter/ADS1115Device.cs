@@ -1,8 +1,11 @@
 ﻿using System;
+using System.Collections;
+using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Windows.Devices.I2c;
 using Windows.System.Threading;
-using System.Linq;
+using Iot.Common.Utils;
 using static ADS1115Adapter.ADS1115_Constants;
 
 namespace ADS1115Adapter
@@ -12,10 +15,13 @@ namespace ADS1115Adapter
         public event EventHandler<ChannelReadingDone> ChannelChanged;
 
         private I2cDevice ads1115;
+        private readonly byte _channelsToReport;
         private ThreadPoolTimer _ads1115Timer;
-        public ADS1115Device(I2cDevice device)
+
+        public ADS1115Device(I2cDevice device, byte channelsToReport)
         {
             ads1115 = device;
+            _channelsToReport = channelsToReport;
         }
 
         public void Dispose()
@@ -31,15 +37,27 @@ namespace ADS1115Adapter
 
         private void ads1115_tick(ThreadPoolTimer timer)
         {
-            byte channel = 0;
-
-            readADC_SingleEnded(channel)
-                .ContinueWith(r => 
-                    ChannelChanged?.Invoke(this, new ChannelReadingDone { RawValue = r.Result, Channel = channel })
-                );
+            StartReading();
         }
 
-        private async Task<int> readADC_SingleEnded(byte channel)
+        private void StartReading()
+        {
+            for (byte channel = 0; channel < 3; channel++)
+            {
+                if (_channelsToReport.FlagIsTrue(channel, false))
+                {
+                    ReadChannel(channel);
+                }
+            }
+        }
+
+        private void ReadChannel(byte channel)
+        {
+            var reading = readADC_SingleEnded(channel);
+            ChannelChanged?.Invoke(this, new ChannelReadingDone {RawValue = reading, Channel = channel});
+        }
+
+        private int readADC_SingleEnded(byte channel)
         {
             if (channel > 3)
             {
@@ -68,7 +86,7 @@ namespace ADS1115Adapter
             // Set 'start single-conversion' bit
             config |= (ushort) ADS1115_REG_CONFIG_OS_SINGLE.GetHashCode();
 
-            return await GetReadingFromConverter(config);
+            return GetReadingFromConverter(config);
         }
 
         private static ushort Set_Defaults()
@@ -78,7 +96,7 @@ namespace ADS1115Adapter
                                 ADS1115_REG_CONFIG_CLAT_NONLAT.GetHashCode() |   // Non-latching (default val)
                                 ADS1115_REG_CONFIG_CPOL_ACTVLOW.GetHashCode() |  // Alert/Rdy active low   (default val)
                                 ADS1115_REG_CONFIG_CMODE_TRAD.GetHashCode() |    // Traditional comparator (default val)
-                                ADS1115_REG_CONFIG_DR_1600SPS.GetHashCode() |    // 1600 samples per second (default)
+                                ADS1115_REG_CONFIG_DR_128SPS.GetHashCode() |    // 128 samples per second
                                 ADS1115_REG_CONFIG_MODE_SINGLE.GetHashCode());   // Single-shot mode (default)
 
             // Set PGA/voltage range
@@ -88,7 +106,7 @@ namespace ADS1115Adapter
             return config;
         }
 
-        private async Task<int> GetReadingFromConverter(ushort config)
+        private int GetReadingFromConverter(ushort config)
         {
             // Write config register to the ADC
             var pointerCommand = (new[] {(byte) ADS1015_REG_POINTER_CONFIG.GetHashCode()}).Union(BitConverter.GetBytes(config)).ToArray();
@@ -96,7 +114,7 @@ namespace ADS1115Adapter
 
             var dataBuffer = new byte[2];
 
-            await Task.Delay(TimeSpan.FromMilliseconds(ADS1115_CONVERSIONDELAY.GetHashCode()));
+            Task.Delay(TimeSpan.FromMilliseconds(ADS1115_CONVERSIONDELAY.GetHashCode())).Wait();
 
             pointerCommand = new[] { (byte)ADS1015_REG_POINTER_CONVERT.GetHashCode() };
             ads1115.WriteRead(pointerCommand, dataBuffer);

@@ -107,6 +107,7 @@
     <None Include="project.json" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ICommonDevice.cs" />
     <Compile Include="ICommonI2CDevice.cs" />
     <Compile Include="ILogger.cs" />
     <Compile Include="IRawValueConverter.cs" />

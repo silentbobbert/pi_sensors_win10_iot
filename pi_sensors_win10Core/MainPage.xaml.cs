@@ -5,12 +5,14 @@ using System.Threading.Tasks;
 using Windows.ApplicationModel;
 using Windows.ApplicationModel.Core;
 using Windows.Devices.Enumeration;
+using Windows.Devices.Gpio;
 using Windows.Devices.I2c;
 using Windows.System.Threading;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using ADS1115Adapter;
+using HC_SR04Adapter;
 using Iot.Common;
 using Iot.Common.Utils;
 using Sharp2Y0A21;
@@ -23,9 +25,10 @@ namespace pi_sensors_win10Core
         private const double SharpConversionFactor = 4221057.491;
         private const double SharpExponent = 1.26814;
 
+
         // ReSharper disable once NotAccessedField.Local
         private readonly Logger _logger;
-        private Dictionary<string, ICommonI2CDevice> _devices;
+        private Dictionary<string, ICommonDevice> _devices;
         private Action<string> _logInfoAction;
         private Action<string, Exception> _logIErrorAction;
         private ThreadPoolTimer _simulatorTimer;
@@ -40,38 +43,58 @@ namespace pi_sensors_win10Core
 
             Unloaded += MainPage_Unloaded;
 
-            _logInfoAction = (message) =>
-            {
-                Debug.WriteLine(message);
-            };
-
-            _logIErrorAction = (message, exception) =>
-            {
-                message = $"{message} - {exception.Message}";
-                Debug.WriteLine(message);
-            };
+            SetupLogging();
 
             _lastExceptionReceived = Now.AddDays(-1);
             _uiCleanUp = ThreadPoolTimer.CreatePeriodicTimer(uiCleanUp_Tick, TimeSpan.FromSeconds(10));
 
             _logger = new Logger(_logInfoAction, _logIErrorAction);
 
-            _devices = new Dictionary<string, ICommonI2CDevice>();
+            _devices = new Dictionary<string, ICommonDevice>();
             
             _sharpSensorConverter = new RawValueConverter(SharpConversionFactor, SharpExponent);
 
-            Task.Factory.StartNew(async () => await InitI2cVCNL4000()
-                .ContinueWith(async t => await InitI2cADS1115())
-                .ContinueWith(async t => await InitSimulator())
-                .ContinueWith(t =>
-                    _devices.ForEach(d => d.Value.Start())
-            ));
+            StartDevices();
+        }
 
-            //Task.Factory.StartNew(async () => await InitI2cADS1115()
-            //    .ContinueWith(t =>
-            //        _devices.ForEach(d => d.Value.Start())
-            //));
+        private void StartDevices()
+        {
+            IEnumerable<Task> devicesToStart = new[]
+            {
+                InitI2cVCNL4000(),
+                InitI2cADS1115(0x01),
+                InitSonarSensor()
+            };
 
+            Task.WhenAll(devicesToStart)
+                .ContinueWith(all => _devices.ForEach(d =>
+                    d.Value.Start()
+                    ));
+        }
+
+        private async Task InitSonarSensor()
+        {
+            var controller = await FindGPIOController();
+            var sensor = new SonarSensor(gpioController: controller, trigPinNo: 16, echoPinNo: 18);
+            sensor.ProximityReceived += Sensor_ProximityReceived;
+            _devices.Add("Sonar Sensor", sensor);
+        }
+
+        private void Sensor_ProximityReceived(object sender, HC_SR04Adapter.ProximtyEventArgs e)
+        {
+            var message = $"Sonar Result Received {e.RawValue}";
+            UpdateUIAsync(() => sonarMessages.Text = message).Wait();
+        }
+
+        private void SetupLogging()
+        {
+            _logInfoAction = (message) => { Debug.WriteLine(message); };
+
+            _logIErrorAction = (message, exception) =>
+            {
+                message = $"{message} - {exception.Message}";
+                Debug.WriteLine(message);
+            };
         }
 
         private void uiCleanUp_Tick(ThreadPoolTimer timer)
@@ -97,7 +120,7 @@ namespace pi_sensors_win10Core
             fakevcnl4000.AmbientLightReceived += Vcnl4000_AmbientLightReceived;
             fakevcnl4000.SensorException += SensorException_Handler;
 
-            await Task.Run(() => _devices.Add(DeviceName(busName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode()), fakevcnl4000));
+            await Task.Run(() => _devices.Add(DeviceName(busName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(), null), fakevcnl4000));
         }
 
         private async Task UpdateProximityMessageBox(string message)
@@ -128,8 +151,8 @@ namespace pi_sensors_win10Core
         private async Task InitI2cVCNL4000()
         {
             const string busName = "I2C1";
-            var bus = await FindController(busName);
-            var device = await FindDevice(bus, VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode());
+            var bus = await FindI2CController(busName);
+            var device = await FindI2CDevice(bus, VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode());
 
             var initSettings = new VCNL4000Settings
             {
@@ -146,34 +169,45 @@ namespace pi_sensors_win10Core
             vcnl4000.AmbientLightReceived += Vcnl4000_AmbientLightReceived;
             vcnl4000.SensorException += SensorException_Handler;
 
-            _devices.Add(DeviceName(busName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode()), vcnl4000);
+            _devices.Add(DeviceName(busName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(), null), vcnl4000);
         }
 
-        private async Task InitI2cADS1115()
+        private async Task InitI2cADS1115(byte channel)
         {
             const string busName = "I2C1";
-            var bus = await FindController(busName);
-            var device = await FindDevice(bus, ADS1115_Constants.ADS1115_ADDRESS.GetHashCode());
-            
-            IADS1115Device ads1115 = new ADS1115Device(device);
+            var bus = await FindI2CController(busName);
+            var device = await FindI2CDevice(bus, ADS1115_Constants.ADS1115_ADDRESS.GetHashCode());
+
+            IADS1115Device ads1115 = new ADS1115Device(device, channel);
             ads1115.ChannelChanged += Ads1115ChannelChanged;
-            _devices.Add(DeviceName(busName, (byte)ADS1115_Constants.ADS1115_ADDRESS.GetHashCode()), ads1115);
+            _devices.Add(DeviceName(busName, (byte)ADS1115_Constants.ADS1115_ADDRESS.GetHashCode(), null), ads1115);
         }
 
         private void Ads1115ChannelChanged(object sender, ChannelReadingDone e)
         {
             var convertedDistance = _sharpSensorConverter.Convert(e.RawValue);
-            var message = $"Channel {e.Channel+1} Message Received - Raw Value {e.RawValue} - Converted Distance {convertedDistance:F2} mm";
-            UpdateChannelOneMessage(message);
+            var message = $"Channel {e.Channel + 1} Message Received - Raw Value {e.RawValue} - Converted Distance {convertedDistance:F2} mm";
             _logInfoAction(message);
+
+            switch (e.Channel)
+            {
+                case 0:
+                    UpdateUIAsync(() => channelOneMessages.Text = message).Wait();
+                    break;
+                case 1:
+                    UpdateUIAsync(() => channelTwoMessages.Text = message).Wait();
+                    break;
+                case 2:
+                    UpdateUIAsync(() => channelThreeMessages.Text = message).Wait();
+                    break;
+                case 3:
+                    UpdateUIAsync(() => channelFourMessages.Text = message).Wait();
+                    break;
+            }
         }
-        private async Task UpdateChannelOneMessage(string message)
+        private async Task UpdateUIAsync(Action updateCallback)
         {
-            await CoreApplication.MainView.CoreWindow.Dispatcher.RunAsync(CoreDispatcherPriority.Normal,
-                    () =>
-                    {
-                        channelOneMessages.Text = message;
-                    });
+            await CoreApplication.MainView.CoreWindow.Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () => updateCallback());
         }
 
         private void Vcnl4000_AmbientLightReceived(object sender, AmbientLightEventArgs e)
@@ -182,7 +216,7 @@ namespace pi_sensors_win10Core
             UpdateAmbientMessageBox(message);
             _logInfoAction(message);
         }
-        private void ProximityReceived_Handler(object sender, ProximtyEventArgs e)
+        private void ProximityReceived_Handler(object sender, VCNL4000Adapter.ProximtyEventArgs e)
         {
             var message = $"Proximity Received - Raw Value {e.RawValue} & Approximate Distance in mm {e.Proximity:F3}";
             UpdateProximityMessageBox(message);
@@ -198,10 +232,14 @@ namespace pi_sensors_win10Core
 
         public DateTime Now => DateTime.Now;
 
-        private string DeviceName(string busName, byte slaveAddress)
+        private string DeviceName(string busName, byte slaveAddress, string append)
         {
             
             var name = $"{busName}\\0x{slaveAddress:x8}";
+            if (!string.IsNullOrEmpty(append))
+            {
+                name = $"{name}\\{append}";
+            }
             return name;
         }
         private void MainPage_Unloaded(object sender, RoutedEventArgs e)
@@ -213,16 +251,16 @@ namespace pi_sensors_win10Core
             _devices.ForEach(d => d.Value.Dispose());
             Application.Current.Exit();
         }
-        private async Task<DeviceInformation> FindController(string busName)
+        private async Task<DeviceInformation> FindI2CController(string busName)
         {
-            var aqs = I2cDevice.GetDeviceSelector(busName);                     /* Get a selector string that will return all I2C controllers on the system */
+            var aqs = I2cDevice.GetDeviceSelector(busName);              /* Get a selector string that will return all I2C controllers on the system */
             var dis = await DeviceInformation.FindAllAsync(aqs);         /* Find the I2C bus controller device with our selector string           */
             if (dis.Count != 0) return dis[0];
 
             _logger.LogException("No I2C controllers were found on the system", new Exception("Unexpected Error"));
             return null;
         }
-        private async Task<I2cDevice> FindDevice(DeviceInformation bus, int slaveAddress)
+        private async Task<I2cDevice> FindI2CDevice(DeviceInformation bus, int slaveAddress)
         {
             var settings = new I2cConnectionSettings(slaveAddress)
             {
@@ -236,6 +274,16 @@ namespace pi_sensors_win10Core
             _logger.LogInfo($"Slave address {settings.SlaveAddress} on I2C Controller {bus.Id} is currently in use by " +
                             "another application, or was not found. Please ensure that no other applications are using I2C and your device is correctly connected to the I2C bus.");
             return null;
+        }
+
+        private async Task<GpioController> FindGPIOController()
+        {
+            var gpio = await GpioController.GetDefaultAsync();
+            if (gpio == null)
+            {
+                UpdateErrorMessageBox("There is no GPIO controller on this device");
+            }
+            return gpio;
         }
     }
 }
