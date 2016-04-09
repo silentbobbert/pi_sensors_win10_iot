@@ -61,8 +61,8 @@ namespace pi_sensors_win10Core
         {
             IEnumerable<Task> devicesToStart = new[]
             {
-                InitI2cVCNL4000(),
-                InitI2cADS1115(0x01),
+                //InitI2cVCNL4000(),
+                //InitI2cADS1115(0x01),
                 InitSonarSensor()
             };
 
@@ -82,7 +82,7 @@ namespace pi_sensors_win10Core
 
         private void Sensor_ProximityReceived(object sender, HC_SR04Adapter.ProximtyEventArgs e)
         {
-            var message = $"Sonar Result Received {e.RawValue}";
+            var message = $"Sonar Result Received {e.RawValue} Distance {e.Distance} mm";
             UpdateUIAsync(() => sonarMessages.Text = message).Wait();
         }
 
