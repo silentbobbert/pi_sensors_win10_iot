@@ -12,6 +12,7 @@ using Windows.UI.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using ADS1115Adapter;
+using ArduinoBridge;
 using HC_SR04Adapter;
 using Iot.Common;
 using Iot.Common.Utils;
@@ -63,7 +64,7 @@ namespace pi_sensors_win10Core
             {
                 //InitI2cVCNL4000(),
                 //InitI2cADS1115(0x01),
-                InitSonarSensor()
+                InitArduinoI2C()
             };
 
             Task.WhenAll(devicesToStart)
@@ -80,9 +81,9 @@ namespace pi_sensors_win10Core
             _devices.Add("Sonar Sensor", sensor);
         }
 
-        private void Sensor_ProximityReceived(object sender, HC_SR04Adapter.ProximtyEventArgs e)
+        private void Sensor_ProximityReceived(object sender, IProximityEventArgs e)
         {
-            var message = $"Sonar Result Received {e.RawValue} Distance {e.Distance} mm";
+            var message = $"Sonar Result Received {e.RawValue} Distance {e.Proximity} mm";
             UpdateUIAsync(() => sonarMessages.Text = message).Wait();
         }
 
@@ -172,6 +173,19 @@ namespace pi_sensors_win10Core
             _devices.Add(DeviceName(busName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(), null), vcnl4000);
         }
 
+        private async Task InitArduinoI2C()
+        {
+            const string busName = "I2C1";
+            var bus = await FindI2CController(busName);
+            var device = await FindI2CDevice(bus, 0x40);
+
+            var arduino = new ArduinoSensor(device);
+            arduino.ProximityReceived += ProximityReceived_Handler;
+            arduino.SensorException += SensorException_Handler;
+
+            _devices.Add(DeviceName(busName, 0x40, null), arduino);
+        }
+
         private async Task InitI2cADS1115(byte channel)
         {
             const string busName = "I2C1";
@@ -216,13 +230,13 @@ namespace pi_sensors_win10Core
             UpdateAmbientMessageBox(message);
             _logInfoAction(message);
         }
-        private void ProximityReceived_Handler(object sender, VCNL4000Adapter.ProximtyEventArgs e)
+        private void ProximityReceived_Handler(object sender, IProximityEventArgs e)
         {
             var message = $"Proximity Received - Raw Value {e.RawValue} & Approximate Distance in mm {e.Proximity:F3}";
             UpdateProximityMessageBox(message);
             _logInfoAction(message);
         }
-        private void SensorException_Handler(object sender, ExceptionEventArgs e)
+        private void SensorException_Handler(object sender, IExceptionEventArgs e)
         {
             _lastExceptionReceived = Now;
             var message = $"Error Received from Sensor : \"{e.Message} \"";

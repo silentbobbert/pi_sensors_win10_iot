@@ -60,7 +60,7 @@ namespace HC_SR04Adapter
 
             _readingTakingPlace = true;
             var raw = GetEchoReading();
-            ProximityReceived?.Invoke(this, new ProximtyEventArgs { RawValue = raw, Distance = CalculateDistance(raw) });
+            ProximityReceived?.Invoke(this, new ProximtyEventArgs { RawValue = raw, Proximity = CalculateDistance(raw) });
             _readingTakingPlace = false;
         }
 

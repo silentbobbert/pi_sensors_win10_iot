@@ -1,7 +1,7 @@
-﻿using System;
+using System;
 using Iot.Common;
 
-namespace VCNL4000Adapter
+namespace ArduinoBridge
 {
     public class ExceptionEventArgs : EventArgs, IExceptionEventArgs
     {

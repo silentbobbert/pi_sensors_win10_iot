@@ -1,7 +1,7 @@
-﻿using System;
+using System;
 using Iot.Common;
 
-namespace HC_SR04Adapter
+namespace ArduinoBridge
 {
     public class ProximtyEventArgs : EventArgs, IProximityEventArgs
     {
