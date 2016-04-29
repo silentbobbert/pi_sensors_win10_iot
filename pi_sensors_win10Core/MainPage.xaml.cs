@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using Windows.ApplicationModel;
 using Windows.ApplicationModel.Core;
 using Windows.Devices.Enumeration;
-using Windows.Devices.Gpio;
 using Windows.Devices.I2c;
 using Windows.System.Threading;
 using Windows.UI.Core;
@@ -13,7 +12,6 @@ using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using ADS1115Adapter;
 using ArduinoBridge;
-using HC_SR04Adapter;
 using Iot.Common;
 using Iot.Common.Utils;
 using Sharp2Y0A21;
@@ -62,8 +60,8 @@ namespace pi_sensors_win10Core
         {
             IEnumerable<Task> devicesToStart = new[]
             {
-                //InitI2cVCNL4000(),
-                //InitI2cADS1115(0x01),
+                InitI2cVCNL4000(),
+                InitI2cADS1115(0x01),
                 InitArduinoI2C()
             };
 
@@ -71,14 +69,6 @@ namespace pi_sensors_win10Core
                 .ContinueWith(all => _devices.ForEach(d =>
                     d.Value.Start()
                     ));
-        }
-
-        private async Task InitSonarSensor()
-        {
-            var controller = await FindGPIOController();
-            var sensor = new SonarSensor(gpioController: controller, trigPinNo: 16, echoPinNo: 18);
-            sensor.ProximityReceived += Sensor_ProximityReceived;
-            _devices.Add("Sonar Sensor", sensor);
         }
 
         private void Sensor_ProximityReceived(object sender, IProximityEventArgs e)
@@ -179,8 +169,8 @@ namespace pi_sensors_win10Core
             var bus = await FindI2CController(busName);
             var device = await FindI2CDevice(bus, 0x40);
 
-            var arduino = new ArduinoSensor(device);
-            arduino.ProximityReceived += ProximityReceived_Handler;
+            var arduino = new ArduinoSensor(device, 100);
+            arduino.ProximityReceived += Sensor_ProximityReceived;
             arduino.SensorException += SensorException_Handler;
 
             _devices.Add(DeviceName(busName, 0x40, null), arduino);
@@ -227,13 +217,19 @@ namespace pi_sensors_win10Core
         private void Vcnl4000_AmbientLightReceived(object sender, AmbientLightEventArgs e)
         {
             var message = $"Ambient Light Received: {e.RawValue}";
-            UpdateAmbientMessageBox(message);
+            UpdateAmbientMessageBox(message).Wait();
             _logInfoAction(message);
         }
         private void ProximityReceived_Handler(object sender, IProximityEventArgs e)
         {
             var message = $"Proximity Received - Raw Value {e.RawValue} & Approximate Distance in mm {e.Proximity:F3}";
-            UpdateProximityMessageBox(message);
+            UpdateProximityMessageBox(message).Wait();
+            _logInfoAction(message);
+        }
+        private void ProximityReceived_HandlerArduino(object sender, IProximityEventArgs e)
+        {
+            var message = $"Proximity Received - Raw Value {e.RawValue} & Approximate Distance in mm {e.Proximity:F3}";
+            UpdateUIAsync(() => sonarMessages.Text = message).Wait();
             _logInfoAction(message);
         }
         private void SensorException_Handler(object sender, IExceptionEventArgs e)
@@ -288,16 +284,6 @@ namespace pi_sensors_win10Core
             _logger.LogInfo($"Slave address {settings.SlaveAddress} on I2C Controller {bus.Id} is currently in use by " +
                             "another application, or was not found. Please ensure that no other applications are using I2C and your device is correctly connected to the I2C bus.");
             return null;
-        }
-
-        private async Task<GpioController> FindGPIOController()
-        {
-            var gpio = await GpioController.GetDefaultAsync();
-            if (gpio == null)
-            {
-                UpdateErrorMessageBox("There is no GPIO controller on this device");
-            }
-            return gpio;
         }
     }
 }

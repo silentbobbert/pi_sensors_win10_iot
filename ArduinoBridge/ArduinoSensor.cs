@@ -37,12 +37,12 @@ namespace ArduinoBridge
                 var readBytes = new byte[2];
                 _device.Read(readBytes);
 
-                var duration = readBytes[1] << 8 | readBytes[0];
+                var pulseWidth = (ushort)(readBytes[0] << 8 | readBytes[1]);
 
                 ProximityReceived?.Invoke(this, new ProximtyEventArgs
                 {
-                    RawValue = duration,
-                    Proximity = (duration/2d)/29.1d
+                    RawValue = pulseWidth,
+                    Proximity = (pulseWidth/2d)/2.91d
                 });
             }
             catch (Exception ex)
@@ -55,10 +55,10 @@ namespace ArduinoBridge
             }
         }
 
-        public ArduinoSensor(I2cDevice device)
+        public ArduinoSensor(I2cDevice device, double interval)
         {
             _device = device;
-            _sensorPollInterval = 500;
+            _sensorPollInterval = interval;
         }
     }
 }

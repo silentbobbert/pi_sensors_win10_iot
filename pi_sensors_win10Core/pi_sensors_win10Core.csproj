@@ -140,10 +140,6 @@
       <Project>{b2cb73bd-0ae8-4a1a-80f6-4cf36d0a030d}</Project>
       <Name>ArduinoBridge</Name>
     </ProjectReference>
-    <ProjectReference Include="..\HC_SR04Adapter\HC_SR04Adapter.csproj">
-      <Project>{0bb33f58-9161-49e9-95d4-6089890186ec}</Project>
-      <Name>HC_SR04Adapter</Name>
-    </ProjectReference>
     <ProjectReference Include="..\Iot.Common\Iot.Common.csproj">
       <Project>{5692bfa7-5684-4c8c-9d35-c83b3f09307b}</Project>
       <Name>Iot.Common</Name>
