@@ -14,6 +14,11 @@ namespace ArduinoBridge
         private ThreadPoolTimer _arduinoTimer;
         private readonly double _sensorPollInterval;
 
+        public ArduinoSensor(I2cDevice device, double interval)
+        {
+            _device = device;
+            _sensorPollInterval = interval;
+        }
         public void Dispose()
         {
             _arduinoTimer.Cancel();
@@ -42,7 +47,7 @@ namespace ArduinoBridge
                 ProximityReceived?.Invoke(this, new ProximtyEventArgs
                 {
                     RawValue = pulseWidth,
-                    Proximity = (pulseWidth/2d)/2.91d
+                    Proximity = Math.Max(0, ((pulseWidth/2d)/2.91d) - 0.5d) //The sensors are about 5mm inside the casing of the device.
                 });
             }
             catch (Exception ex)
@@ -53,12 +58,6 @@ namespace ArduinoBridge
                     Message = "An error occurred reading values from Arduino Sensor Device"
                 });
             }
-        }
-
-        public ArduinoSensor(I2cDevice device, double interval)
-        {
-            _device = device;
-            _sensorPollInterval = interval;
         }
     }
 }

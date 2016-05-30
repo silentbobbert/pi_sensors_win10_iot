@@ -1,8 +1,8 @@
 #include <Wire.h>
 
 #define MyAddress 0x40
-#define trigPin 12
-#define echoPin 11
+#define trigPin 9
+#define echoPin 8
 #define onBoardLED 13
 
 //#define  RESULTS_SIZE 4 // A long takes 4 bytes
@@ -29,10 +29,6 @@ void loop()
 {
 	Value_Duration = Ping();
 	ReactToDistance(Value_Duration);
-  
-  // Wait for 50 ms
-  //delay(50);
-  
 }
 
 /*Win10 IoT can send Command Bytes to a command register etc*/
@@ -65,9 +61,9 @@ void requestEvent()
 	ReactToDistance(duration);
 }
 
-long Ping()
+unsigned short Ping()
 {
-	unsigned short duration;
+	long duration;
   
 	digitalWrite(trigPin, LOW); 
 	delayMicroseconds(2);
@@ -77,12 +73,12 @@ long Ping()
 	duration = pulseIn(echoPin, HIGH);
 	if(duration < 60000)
 	{
-	return duration;
+		return (unsigned short)duration;
 	}
 	return 60000;
 }
 
-void ReactToDistance(long duration)
+void ReactToDistance(unsigned short duration)
 {
 	double distance = (duration/2) / 29.1;
 	if (distance < 5) 
