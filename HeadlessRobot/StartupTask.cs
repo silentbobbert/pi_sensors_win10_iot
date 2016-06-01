@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Net.Http;
 using System.Threading.Tasks;
+using Windows.ApplicationModel;
 using Windows.ApplicationModel.Background;
 using Windows.Devices.Enumeration;
 using Windows.Devices.I2c;
@@ -33,6 +34,13 @@ namespace HeadlessRobot
         private Action<string, Exception> _logIErrorAction;
         private RawValueConverter _sharpSensorConverter;
         private bool _runTask = true;
+        private readonly HttpClient _client;
+        private readonly Uri _apiAddress = new Uri("https://10.21.9.149:44312/api/pilistener/message");
+
+        public StartupTask()
+        {
+            _client = new HttpClient();
+        }
 
         public async void Run(IBackgroundTaskInstance taskInstance)
         {
@@ -41,6 +49,8 @@ namespace HeadlessRobot
 
             SetupLogging();
             _logger = new Logger(_logInfoAction, _logIErrorAction);
+
+            await _client.PostAsJsonAsync(_apiAddress, new SimpleDTO { Message = "Robot Starting!" });
 
             _sharpSensorConverter = new RawValueConverter(SharpConversionFactor, SharpExponent);
 
@@ -53,6 +63,7 @@ namespace HeadlessRobot
                 //run forever, or until cancelled!
             }
 
+            await _client.PostAsJsonAsync(_apiAddress, new SimpleDTO { Message = "Robot Closing!" });
             _deferral.Complete();
         }
 
@@ -66,15 +77,14 @@ namespace HeadlessRobot
         {
             _logInfoAction = (message) =>
             {
-                var client = new HttpClient();
-                client.PostAsJsonAsync(new Uri("http://localhost/RemoveService/api/PiListener/message"), new SimpleDTO {Message = message });
-
+                _client.PostAsJsonAsync(_apiAddress, new SimpleDTO {Message = message });
                 Debug.WriteLine(message);
             };
 
             _logIErrorAction = (message, exception) =>
             {
                 message = $"{message} - {exception.Message}";
+                _client.PostAsJsonAsync(_apiAddress, new SimpleDTO { Message = message });
                 Debug.WriteLine(message);
             };
         }
@@ -83,6 +93,7 @@ namespace HeadlessRobot
         {
             IEnumerable<Task> devicesToStart = new[]
             {
+                //InitSimulator(),
                 InitI2cVCNL4000(),
                 InitI2cADS1115(0x01),
                 //InitArduinoI2C()
@@ -92,6 +103,23 @@ namespace HeadlessRobot
                 .ContinueWith(all => _devices.ForEach(d =>
                     d.Value.Start()
                 ));
+        }
+        private async Task InitSimulator()
+        {
+            // get the package architecure
+            var package = Package.Current;
+            var systemArchitecture = package.Id.Architecture.ToString();
+
+            if (systemArchitecture.ToUpper().Contains("ARM")) return; //Dont simulate on ARM device - likely to be real device with real sensors!
+
+            const string busName = "I2C1";
+
+            IVCNL4000Device fakevcnl4000 = new SimulatedVcnl4000();
+            fakevcnl4000.ProximityReceived += ProximityReceived_Handler;
+            fakevcnl4000.AmbientLightReceived += Vcnl4000_AmbientLightReceived;
+            fakevcnl4000.SensorException += SensorException_Handler;
+
+            await Task.Run(() => _devices.Add(DeviceName(busName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(), null), fakevcnl4000));
         }
         // ReSharper disable once InconsistentNaming
         private async Task InitI2cVCNL4000()
