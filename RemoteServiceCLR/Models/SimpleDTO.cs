@@ -1,4 +1,4 @@
-﻿namespace RemoteService.DTOs
+﻿namespace RemoteService.Models
 {
     public class SimpleDTO
     {

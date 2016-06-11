@@ -68,7 +68,7 @@ namespace pi_sensors_win10Core
             Task.WhenAll(devicesToStart)
                 .ContinueWith(all => _devices.ForEach(d =>
                     d.Value.Start()
-                    ));
+                ));
         }
 
         private void Sensor_ProximityReceived(object sender, IProximityEventArgs e)

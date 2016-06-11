@@ -3,19 +3,23 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
-using System.Net.Http;
 using System.Threading.Tasks;
 using Windows.ApplicationModel;
 using Windows.ApplicationModel.Background;
 using Windows.Devices.Enumeration;
 using Windows.Devices.I2c;
+using Windows.Foundation;
+using Windows.Web.Http;
 using ADS1115Adapter;
 using ArduinoBridge;
 using HeadlessRobot.DTOs;
 using Iot.Common;
 using Iot.Common.Utils;
+using Newtonsoft.Json;
 using Sharp2Y0A21;
 using VCNL4000Adapter;
+using HttpClient = System.Net.Http.HttpClient;
+using UnicodeEncoding = Windows.Storage.Streams.UnicodeEncoding;
 
 // The Background Application template is documented at http://go.microsoft.com/fwlink/?LinkID=533884&clcid=0x409
 
@@ -34,12 +38,37 @@ namespace HeadlessRobot
         private Action<string, Exception> _logIErrorAction;
         private RawValueConverter _sharpSensorConverter;
         private bool _runTask = true;
-        private readonly HttpClient _client;
-        private readonly Uri _apiAddress = new Uri("https://10.21.9.149:44312/api/pilistener/message");
+        private readonly Uri _apiAddress = new Uri("https://10.21.9.149/RemoteService/api/pilistener/message");
 
-        public StartupTask()
+        public IAsyncAction PostMessageToApiAction(string message)
         {
-            _client = new HttpClient();
+            return PostMessageToAPI(message).AsAsyncAction();
+        }
+
+        private async Task PostMessageToAPI(string message)
+        {
+            var filter = new Windows.Web.Http.Filters.HttpBaseProtocolFilter();
+            filter.IgnorableServerCertificateErrors.Add(Windows.Security.Cryptography.Certificates.ChainValidationResult.Expired);
+            filter.IgnorableServerCertificateErrors.Add(Windows.Security.Cryptography.Certificates.ChainValidationResult.Untrusted);
+            filter.IgnorableServerCertificateErrors.Add(Windows.Security.Cryptography.Certificates.ChainValidationResult.InvalidName);
+
+            var messageObject = new SimpleDTO {Message = message };
+
+            var stringContent = new HttpStringContent(JsonConvert.SerializeObject(messageObject), UnicodeEncoding.Utf8, "application/json");
+
+            using (var client = new Windows.Web.Http.HttpClient(filter))
+            {
+                try
+                {
+                    var result = await client.PostAsync(_apiAddress, stringContent);
+                    Debug.WriteLine($"Posting Message result was successful? : {result.IsSuccessStatusCode}");
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine(ex);
+                }
+            }
+
         }
 
         public async void Run(IBackgroundTaskInstance taskInstance)
@@ -50,7 +79,15 @@ namespace HeadlessRobot
             SetupLogging();
             _logger = new Logger(_logInfoAction, _logIErrorAction);
 
-            await _client.PostAsJsonAsync(_apiAddress, new SimpleDTO { Message = "Robot Starting!" });
+            try
+            {
+                await PostMessageToAPI("Robot Starting!");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
+            
 
             _sharpSensorConverter = new RawValueConverter(SharpConversionFactor, SharpExponent);
 
@@ -63,7 +100,7 @@ namespace HeadlessRobot
                 //run forever, or until cancelled!
             }
 
-            await _client.PostAsJsonAsync(_apiAddress, new SimpleDTO { Message = "Robot Closing!" });
+            await PostMessageToAPI("Robot Closing!");
             _deferral.Complete();
         }
 
@@ -75,16 +112,16 @@ namespace HeadlessRobot
 
         private void SetupLogging()
         {
-            _logInfoAction = (message) =>
+            _logInfoAction = async (message) =>
             {
-                _client.PostAsJsonAsync(_apiAddress, new SimpleDTO {Message = message });
+                await PostMessageToAPI(message);
                 Debug.WriteLine(message);
             };
 
-            _logIErrorAction = (message, exception) =>
+            _logIErrorAction = async (message, exception) =>
             {
                 message = $"{message} - {exception.Message}";
-                _client.PostAsJsonAsync(_apiAddress, new SimpleDTO { Message = message });
+                await PostMessageToAPI(message);
                 Debug.WriteLine(message);
             };
         }
@@ -96,7 +133,7 @@ namespace HeadlessRobot
                 //InitSimulator(),
                 InitI2cVCNL4000(),
                 InitI2cADS1115(0x01),
-                //InitArduinoI2C()
+                InitArduinoI2C()
             };
 
             return Task.WhenAll(devicesToStart)
