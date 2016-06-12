@@ -143,6 +143,10 @@
       <Project>{5692bfa7-5684-4c8c-9d35-c83b3f09307b}</Project>
       <Name>Iot.Common</Name>
     </ProjectReference>
+    <ProjectReference Include="..\PCA9685PWMServoContoller\PCA9685PWMServoContoller.csproj">
+      <Project>{ce1028d6-53ce-43f7-b3bb-bee5c1a6040e}</Project>
+      <Name>PCA9685PWMServoContoller</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Sharp2Y0A21\Sharp2Y0A21.csproj">
       <Project>{5374b978-4c7c-4d0f-b140-38d131829812}</Project>
       <Name>Sharp2Y0A21</Name>
@@ -156,9 +160,6 @@
     <SDKReference Include="WindowsIoT, Version=10.0.10586.0">
       <Name>Windows IoT Extensions for the UWP</Name>
     </SDKReference>
-  </ItemGroup>
-  <ItemGroup>
-    <WCFMetadata Include="Service References\" />
   </ItemGroup>
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' or '$(VisualStudioVersion)' &lt; '14.0' ">
     <VisualStudioVersion>14.0</VisualStudioVersion>

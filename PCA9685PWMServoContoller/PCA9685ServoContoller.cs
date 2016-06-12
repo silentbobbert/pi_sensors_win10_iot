@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Windows.Devices.I2c;
+using Iot.Common;
 
 namespace PCA9685PWMServoContoller
 {
@@ -19,7 +21,7 @@ namespace PCA9685PWMServoContoller
     /// Version 2015.12.27.0
     /// Developed by: Chris Leavitt.
     /// </remarks>
-    public class PCA9685ServoContoller
+    public class PCA9685ServoContoller 
     {
         /// <summary>
         /// The I2C device instance to be controlled. 
@@ -34,9 +36,9 @@ namespace PCA9685PWMServoContoller
         public PCA9685ServoContoller(I2cDevice device)
         {
             _device = device;
-
+            Task.Delay(100).Wait();
             // Set default configuration to ensure a known state.
-            ResetDevice();
+            //ResetDevice();
         }
 
         /// <summary>
@@ -189,6 +191,8 @@ namespace PCA9685PWMServoContoller
             WriteRegister(Register.MODE1, (registerValue | (byte)Command.RESTART)); // Restart.
         }
 
+        
+
         /// <summary>
         /// Resets the device/module configuration to default settings and sets all output channels to off.
         /// Can be used to return the device to a known state.
@@ -199,19 +203,34 @@ namespace PCA9685PWMServoContoller
             SetFullOff(PwmChannel.All);
             WriteRegister(Register.MODE1, (byte)Command.DEFAULT_CONFIG);
         }
+        //public void ResetDevice()
+        //{
+        //    SetAllCall(false);
 
-        #region " Methods (Public / Advanced Device Configuration) "
+        //    // Set default configuration to ensure a known state.
+        //    SetFullOff(PwmChannel.All);
+        //    WriteRegister(Register.MODE1, (byte)Command.DEFAULT_CONFIG);
+        //    WriteRegister(Register.MODE2, (byte)Command.OUTDRV);
 
-        // UNDONE: This device's "all call" and "sub address" functionality have not been fully implemented and are disabled by default.
-        // It is possible to enable/disable these features in the devices configuration using methods provided by this class, but this class does not make use of the features beyond that.
+        //    Task.Delay(5).Wait(); //wait for oscillator
+        //    var mode1 = ReadRegister(Register.MODE1);
+        //    mode1 = (byte)(mode1 & (byte) Command.SLEEP); // wake up (reset sleep)
+        //    WriteRegister(Register.MODE1, mode1);
+        //    Task.Delay(5).Wait(); //wait for oscillator
+        //}
 
-        /// <summary>
-        /// Enables or disables the I2C "all call" address for the device.
-        /// Allow multiple modules to be controlled with a single address.  
-        /// All modules will respond to the all call address if enabled.
-        /// </summary>
-        /// <param name="enable">True to enable, false to disable.</param>
-        public void SetAllCall(bool enable)
+    #region " Methods (Public / Advanced Device Configuration) "
+
+    // UNDONE: This device's "all call" and "sub address" functionality have not been fully implemented and are disabled by default.
+    // It is possible to enable/disable these features in the devices configuration using methods provided by this class, but this class does not make use of the features beyond that.
+
+    /// <summary>
+    /// Enables or disables the I2C "all call" address for the device.
+    /// Allow multiple modules to be controlled with a single address.  
+    /// All modules will respond to the all call address if enabled.
+    /// </summary>
+    /// <param name="enable">True to enable, false to disable.</param>
+    public void SetAllCall(bool enable)
         {
             var registerValue = ReadRegister(Register.MODE1);
 
@@ -411,8 +430,15 @@ namespace PCA9685PWMServoContoller
 
             // Debug output.
             //System.Diagnostics.Debug.WriteLine("WriteRegister: {0}, data = {1}.", register, ByteToBinaryString(data));
-
-            _device.Write(new[] { (byte)register, data });
+            try
+            {
+                _device.Write(new[] { (byte)register, data });
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
+            
 
         }
 
@@ -423,19 +449,25 @@ namespace PCA9685PWMServoContoller
         /// <returns>The data read from the device.</returns>
         private byte ReadRegister(Register register)
         {
-            // Initialize the read/write buffers.
-            var regAddrBuf = new[] { (byte)register }; // Device register address to write.          
-            var readBuf = new byte[1]; // Read buffer to store results read from device.
+            byte result = 0;
+            try
+            {
+                // Initialize the read/write buffers.
+                var regAddrBuf = new[] { (byte)register }; // Device register address to write.          
+                var readBuf = new byte[1]; // Read buffer to store results read from device.
 
-            // Read from the device.
-            // We call WriteRead(), first write the address of the device register to be targeted, then read back the data from the device.
-            _device.WriteRead(regAddrBuf, readBuf);
-
-            var result = readBuf[0];
+                // Read from the device.
+                // We call WriteRead(), first write the address of the device register to be targeted, then read back the data from the device.
+                _device.WriteRead(regAddrBuf, readBuf);
+                result = readBuf[0];
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
 
             // Debug output.
             //System.Diagnostics.Debug.WriteLine("ReadRegister: {0}, result = {1}.", register, ByteToBinaryString(result));
-
             return result;
         }
 
@@ -465,6 +497,8 @@ namespace PCA9685PWMServoContoller
 
             return binaryString;
         }
+
+        
 
         #endregion
 

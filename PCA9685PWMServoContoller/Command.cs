@@ -43,5 +43,7 @@
 
         // Mode register 2 commands/functionality not implemented.
 
+        OUTDRV = 0x04,
+
     }
 }

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -16,6 +17,7 @@ using HeadlessRobot.DTOs;
 using Iot.Common;
 using Iot.Common.Utils;
 using Newtonsoft.Json;
+using PCA9685PWMServoContoller;
 using Sharp2Y0A21;
 using VCNL4000Adapter;
 using HttpClient = System.Net.Http.HttpClient;
@@ -32,13 +34,14 @@ namespace HeadlessRobot
 
 
         private BackgroundTaskDeferral _deferral;
-        private Dictionary<string, ICommonDevice> _devices;
+        private Dictionary<string, ICommonDevice> _sensors;
         private Logger _logger;
         private Action<string> _logInfoAction;
         private Action<string, Exception> _logIErrorAction;
         private RawValueConverter _sharpSensorConverter;
         private bool _runTask = true;
         private readonly Uri _apiAddress = new Uri("https://10.21.9.149/RemoteService/api/pilistener/message");
+        private PCA9685ServoContoller _pca9685ServoContoller;
 
         public IAsyncAction PostMessageToApiAction(string message)
         {
@@ -87,17 +90,21 @@ namespace HeadlessRobot
             {
                 Debug.WriteLine(ex);
             }
-            
 
             _sharpSensorConverter = new RawValueConverter(SharpConversionFactor, SharpExponent);
 
-            _devices = new Dictionary<string, ICommonDevice>();
+            //_sensors = new Dictionary<string, ICommonDevice>();
+            //await StartSensors();
 
-            await StartDevices();
+            _pca9685ServoContoller = await InitI2cServoController();
 
             while (_runTask)
             {
                 //run forever, or until cancelled!
+                _pca9685ServoContoller.SetPwm(PwmChannel.C0, 0, 150);
+                Task.Delay(1000).Wait();
+                _pca9685ServoContoller.SetPwm(PwmChannel.C0, 0, 600);
+                Task.Delay(1000).Wait();
             }
 
             await PostMessageToAPI("Robot Closing!");
@@ -126,20 +133,31 @@ namespace HeadlessRobot
             };
         }
 
-        private Task StartDevices()
+        private Task StartSensors()
         {
             IEnumerable<Task> devicesToStart = new[]
             {
                 //InitSimulator(),
-                InitI2cVCNL4000(),
+                //InitI2cVCNL4000(),
                 InitI2cADS1115(0x01),
-                InitArduinoI2C()
+                //InitArduinoI2C()
             };
 
             return Task.WhenAll(devicesToStart)
-                .ContinueWith(all => _devices.ForEach(d =>
+                .ContinueWith(all => _sensors.ForEach(d =>
                     d.Value.Start()
                 ));
+        }
+
+        [SuppressMessage("ReSharper", "InconsistentNaming")]
+        private async Task<PCA9685ServoContoller> InitI2cServoController()
+        {
+            const string busName = "I2C1";
+            var bus = await FindI2CController(busName);
+            var device = await FindI2CDevice(bus, 0x40, I2cBusSpeed.FastMode, I2cSharingMode.Shared);
+
+            var servoController = new PCA9685ServoContoller(device);
+            return servoController;
         }
         private async Task InitSimulator()
         {
@@ -156,14 +174,14 @@ namespace HeadlessRobot
             fakevcnl4000.AmbientLightReceived += Vcnl4000_AmbientLightReceived;
             fakevcnl4000.SensorException += SensorException_Handler;
 
-            await Task.Run(() => _devices.Add(DeviceName(busName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(), null), fakevcnl4000));
+            await Task.Run(() => _sensors.Add(DeviceName(busName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(), null), fakevcnl4000));
         }
         // ReSharper disable once InconsistentNaming
         private async Task InitI2cVCNL4000()
         {
             const string busName = "I2C1";
             var bus = await FindI2CController(busName);
-            var device = await FindI2CDevice(bus, VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode());
+            var device = await FindI2CDevice(bus, VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(),I2cBusSpeed.FastMode, I2cSharingMode.Shared);
 
             var initSettings = new VCNL4000Settings
             {
@@ -180,29 +198,29 @@ namespace HeadlessRobot
             vcnl4000.AmbientLightReceived += Vcnl4000_AmbientLightReceived;
             vcnl4000.SensorException += SensorException_Handler;
 
-            _devices.Add(DeviceName(busName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(), null), vcnl4000);
+            _sensors.Add(DeviceName(busName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(), null), vcnl4000);
         }
         private async Task InitI2cADS1115(byte channel)
         {
             const string busName = "I2C1";
             var bus = await FindI2CController(busName);
-            var device = await FindI2CDevice(bus, ADS1115_Constants.ADS1115_ADDRESS.GetHashCode());
+            var device = await FindI2CDevice(bus, ADS1115_Constants.ADS1115_ADDRESS.GetHashCode(), I2cBusSpeed.FastMode, I2cSharingMode.Shared);
 
             IADS1115Device ads1115 = new ADS1115Device(device, channel);
             ads1115.ChannelChanged += Ads1115ChannelChanged;
-            _devices.Add(DeviceName(busName, (byte)ADS1115_Constants.ADS1115_ADDRESS.GetHashCode(), null), ads1115);
+            _sensors.Add(DeviceName(busName, (byte)ADS1115_Constants.ADS1115_ADDRESS.GetHashCode(), null), ads1115);
         }
         private async Task InitArduinoI2C()
         {
             const string busName = "I2C1";
             var bus = await FindI2CController(busName);
-            var device = await FindI2CDevice(bus, 0x40);
+            var device = await FindI2CDevice(bus, 0x41, I2cBusSpeed.FastMode, I2cSharingMode.Shared);
 
             var arduino = new ArduinoSensor(device, 100);
             arduino.ProximityReceived += Sonar_ProximityReceived;
             arduino.SensorException += SensorException_Handler;
 
-            _devices.Add(DeviceName(busName, 0x40, null), arduino);
+            _sensors.Add(DeviceName(busName, 0x40, null), arduino);
         }
         private void Sonar_ProximityReceived(object sender, IProximityEventArgs e)
         {
@@ -218,12 +236,12 @@ namespace HeadlessRobot
             _logger.LogException("No I2C controllers were found on the system", new Exception("Unexpected Error"));
             return null;
         }
-        private async Task<I2cDevice> FindI2CDevice(DeviceInformation bus, int slaveAddress)
+        private async Task<I2cDevice> FindI2CDevice(DeviceInformation bus, int slaveAddress, I2cBusSpeed busSpeed, I2cSharingMode sharingMode)
         {
             var settings = new I2cConnectionSettings(slaveAddress)
             {
-                BusSpeed = I2cBusSpeed.FastMode,
-                SharingMode = I2cSharingMode.Shared,
+                BusSpeed = busSpeed,
+                SharingMode = sharingMode,
             };
             var device = await I2cDevice.FromIdAsync(bus.Id, settings);    /* Create an I2cDevice with our selected bus controller and I2C settings */
             if (device != null) return device;

@@ -1,6 +1,6 @@
 #include <Wire.h>
 
-#define MyAddress 0x40
+#define MyAddress 0x41
 #define trigPin 9
 #define echoPin 8
 #define onBoardLED 13
