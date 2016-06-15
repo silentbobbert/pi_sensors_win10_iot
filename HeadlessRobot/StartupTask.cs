@@ -42,6 +42,14 @@ namespace HeadlessRobot
         private bool _runTask = true;
         private readonly Uri _apiAddress = new Uri("https://10.21.9.149/RemoteService/api/pilistener/message");
         private PCA9685ServoContoller _pca9685ServoContoller;
+        private readonly int _minServoSetting;
+        private readonly int _maxServoSetting;
+
+        public StartupTask()
+        {
+            _minServoSetting = 250;
+            _maxServoSetting = 800;
+        }
 
         public IAsyncAction PostMessageToApiAction(string message)
         {
@@ -97,18 +105,26 @@ namespace HeadlessRobot
             //await StartSensors();
 
             _pca9685ServoContoller = await InitI2cServoController();
+            _pca9685ServoContoller.SetPwmUpdateRate(60);
 
             while (_runTask)
             {
                 //run forever, or until cancelled!
-                _pca9685ServoContoller.SetPwm(PwmChannel.C0, 0, 150);
-                Task.Delay(1000).Wait();
-                _pca9685ServoContoller.SetPwm(PwmChannel.C0, 0, 600);
-                Task.Delay(1000).Wait();
+                SonarSweep();
             }
 
             await PostMessageToAPI("Robot Closing!");
             _deferral.Complete();
+        }
+
+        private void SonarSweep()
+        {
+            
+            _pca9685ServoContoller.SetPwm(PwmChannel.C0, 0, _minServoSetting);
+            Task.Delay(1000).Wait();
+           
+            _pca9685ServoContoller.SetPwm(PwmChannel.C0, 0, _maxServoSetting);
+            Task.Delay(1000).Wait();
         }
 
         private void TaskInstance_Canceled(IBackgroundTaskInstance sender, BackgroundTaskCancellationReason reason)
