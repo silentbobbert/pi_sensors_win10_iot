@@ -4,15 +4,15 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{CE1028D6-53CE-43F7-B3BB-BEE5C1A6040E}</ProjectGuid>
+    <ProjectGuid>{2B9F58A7-CC2E-4A48-B003-3D9021AAE334}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>PCA9685PWMServoContoller</RootNamespace>
-    <AssemblyName>PCA9685PWMServoContoller</AssemblyName>
+    <RootNamespace>SonarManager</RootNamespace>
+    <AssemblyName>SonarManager</AssemblyName>
     <DefaultLanguage>en-US</DefaultLanguage>
     <TargetPlatformIdentifier>UAP</TargetPlatformIdentifier>
     <TargetPlatformVersion>10.0.10586.0</TargetPlatformVersion>
-    <TargetPlatformMinVersion>10.0.10586.0</TargetPlatformMinVersion>
+    <TargetPlatformMinVersion>10.0.10240.0</TargetPlatformMinVersion>
     <MinimumVisualStudioVersion>14</MinimumVisualStudioVersion>
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{A5A43C5B-DE2A-4C0C-9213-0A381AF9435A};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
@@ -107,29 +107,27 @@
     <None Include="project.json" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Command.cs" />
-    <Compile Include="PCA9685ServoContoller.cs" />
+    <Compile Include="PositionalDistanceEventArgs.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="PWMChannel.cs" />
-    <Compile Include="Register.cs" />
-    <EmbeddedResource Include="Properties\PCA9685PWMServoContoller.rd.xml" />
+    <Compile Include="SonarCoordinator.cs" />
+    <EmbeddedResource Include="Properties\SonarManager.rd.xml" />
   </ItemGroup>
   <ItemGroup>
-    <SDKReference Include="WindowsIoT, Version=10.0.10586.0">
-      <Name>Windows IoT Extensions for the UWP</Name>
-    </SDKReference>
-  </ItemGroup>
-  <ItemGroup>
+    <ProjectReference Include="..\ArduinoBridge\ArduinoBridge.csproj">
+      <Project>{b2cb73bd-0ae8-4a1a-80f6-4cf36d0a030d}</Project>
+      <Name>ArduinoBridge</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Iot.Common\Iot.Common.csproj">
       <Project>{5692bfa7-5684-4c8c-9d35-c83b3f09307b}</Project>
       <Name>Iot.Common</Name>
     </ProjectReference>
+    <ProjectReference Include="..\PCA9685PWMServoContoller\PCA9685PWMServoContoller.csproj">
+      <Project>{ce1028d6-53ce-43f7-b3bb-bee5c1a6040e}</Project>
+      <Name>PCA9685PWMServoContoller</Name>
+    </ProjectReference>
   </ItemGroup>
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' or '$(VisualStudioVersion)' &lt; '14.0' ">
     <VisualStudioVersion>14.0</VisualStudioVersion>
-  </PropertyGroup>
-  <PropertyGroup>
-    <StartupObject />
   </PropertyGroup>
   <Import Project="$(MSBuildExtensionsPath)\Microsoft\WindowsXaml\v$(VisualStudioVersion)\Microsoft.Windows.UI.Xaml.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

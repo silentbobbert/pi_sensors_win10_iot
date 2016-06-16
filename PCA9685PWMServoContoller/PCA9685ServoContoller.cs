@@ -21,7 +21,7 @@ namespace PCA9685PWMServoContoller
     /// Version 2015.12.27.0
     /// Developed by: Chris Leavitt.
     /// </remarks>
-    public class PCA9685ServoContoller 
+    public sealed class PCA9685ServoContoller 
     {
         /// <summary>
         /// The I2C device instance to be controlled. 

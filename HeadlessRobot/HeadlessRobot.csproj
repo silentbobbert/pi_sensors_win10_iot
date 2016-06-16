@@ -151,6 +151,10 @@
       <Project>{5374b978-4c7c-4d0f-b140-38d131829812}</Project>
       <Name>Sharp2Y0A21</Name>
     </ProjectReference>
+    <ProjectReference Include="..\SonarManager\SonarManager.csproj">
+      <Project>{2B9F58A7-CC2E-4A48-B003-3D9021AAE334}</Project>
+      <Name>SonarManager</Name>
+    </ProjectReference>
     <ProjectReference Include="..\VCNL4000Adapter\VCNL4000Adapter.csproj">
       <Project>{fad1607d-00dd-418b-8b49-ffd074893ca9}</Project>
       <Name>VCNL4000Adapter</Name>

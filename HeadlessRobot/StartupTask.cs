@@ -3,14 +3,16 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Windows.ApplicationModel;
 using Windows.ApplicationModel.Background;
 using Windows.Devices.Enumeration;
 using Windows.Devices.I2c;
 using Windows.Foundation;
+using Windows.Security.Cryptography.Certificates;
+using Windows.Storage.Streams;
 using Windows.Web.Http;
+using Windows.Web.Http.Filters;
 using ADS1115Adapter;
 using ArduinoBridge;
 using HeadlessRobot.DTOs;
@@ -20,8 +22,7 @@ using Newtonsoft.Json;
 using PCA9685PWMServoContoller;
 using Sharp2Y0A21;
 using VCNL4000Adapter;
-using HttpClient = System.Net.Http.HttpClient;
-using UnicodeEncoding = Windows.Storage.Streams.UnicodeEncoding;
+using SonarManager;
 
 // The Background Application template is documented at http://go.microsoft.com/fwlink/?LinkID=533884&clcid=0x409
 
@@ -31,10 +32,11 @@ namespace HeadlessRobot
     {
         private const double SharpConversionFactor = 4221057.491;
         private const double SharpExponent = 1.26814;
+        private const int ArduinoSlaveAddress = 0x41;
 
 
         private BackgroundTaskDeferral _deferral;
-        private Dictionary<string, ICommonDevice> _sensors;
+        private Dictionary<string, ICommonDevice> _devices;
         private Logger _logger;
         private Action<string> _logInfoAction;
         private Action<string, Exception> _logIErrorAction;
@@ -42,14 +44,6 @@ namespace HeadlessRobot
         private bool _runTask = true;
         private readonly Uri _apiAddress = new Uri("https://10.21.9.149/RemoteService/api/pilistener/message");
         private PCA9685ServoContoller _pca9685ServoContoller;
-        private readonly int _minServoSetting;
-        private readonly int _maxServoSetting;
-
-        public StartupTask()
-        {
-            _minServoSetting = 250;
-            _maxServoSetting = 800;
-        }
 
         public IAsyncAction PostMessageToApiAction(string message)
         {
@@ -58,16 +52,16 @@ namespace HeadlessRobot
 
         private async Task PostMessageToAPI(string message)
         {
-            var filter = new Windows.Web.Http.Filters.HttpBaseProtocolFilter();
-            filter.IgnorableServerCertificateErrors.Add(Windows.Security.Cryptography.Certificates.ChainValidationResult.Expired);
-            filter.IgnorableServerCertificateErrors.Add(Windows.Security.Cryptography.Certificates.ChainValidationResult.Untrusted);
-            filter.IgnorableServerCertificateErrors.Add(Windows.Security.Cryptography.Certificates.ChainValidationResult.InvalidName);
+            var filter = new HttpBaseProtocolFilter();
+            filter.IgnorableServerCertificateErrors.Add(ChainValidationResult.Expired);
+            filter.IgnorableServerCertificateErrors.Add(ChainValidationResult.Untrusted);
+            filter.IgnorableServerCertificateErrors.Add(ChainValidationResult.InvalidName);
 
             var messageObject = new SimpleDTO {Message = message };
 
             var stringContent = new HttpStringContent(JsonConvert.SerializeObject(messageObject), UnicodeEncoding.Utf8, "application/json");
 
-            using (var client = new Windows.Web.Http.HttpClient(filter))
+            using (var client = new HttpClient(filter))
             {
                 try
                 {
@@ -101,30 +95,21 @@ namespace HeadlessRobot
 
             _sharpSensorConverter = new RawValueConverter(SharpConversionFactor, SharpExponent);
 
-            //_sensors = new Dictionary<string, ICommonDevice>();
-            //await StartSensors();
+            _devices = new Dictionary<string, ICommonDevice>();
+            await StartSensors();
 
             _pca9685ServoContoller = await InitI2cServoController();
-            _pca9685ServoContoller.SetPwmUpdateRate(60);
+            var sonarCoordinator = new SonarCoordinator(_pca9685ServoContoller, _devices.Single(d => d.Key == DeviceName("I2C1", ArduinoSlaveAddress, null)).Value as ArduinoSensor);
+            _devices.Add("sonarCoordinator", sonarCoordinator);
+            sonarCoordinator.Start();
 
             while (_runTask)
             {
                 //run forever, or until cancelled!
-                SonarSweep();
             }
 
             await PostMessageToAPI("Robot Closing!");
             _deferral.Complete();
-        }
-
-        private void SonarSweep()
-        {
-            
-            _pca9685ServoContoller.SetPwm(PwmChannel.C0, 0, _minServoSetting);
-            Task.Delay(1000).Wait();
-           
-            _pca9685ServoContoller.SetPwm(PwmChannel.C0, 0, _maxServoSetting);
-            Task.Delay(1000).Wait();
         }
 
         private void TaskInstance_Canceled(IBackgroundTaskInstance sender, BackgroundTaskCancellationReason reason)
@@ -155,12 +140,12 @@ namespace HeadlessRobot
             {
                 //InitSimulator(),
                 //InitI2cVCNL4000(),
-                InitI2cADS1115(0x01),
-                //InitArduinoI2C()
+                //InitI2cADS1115(0x01),
+                InitArduinoI2C()
             };
 
             return Task.WhenAll(devicesToStart)
-                .ContinueWith(all => _sensors.ForEach(d =>
+                .ContinueWith(all => _devices.ForEach(d =>
                     d.Value.Start()
                 ));
         }
@@ -190,7 +175,7 @@ namespace HeadlessRobot
             fakevcnl4000.AmbientLightReceived += Vcnl4000_AmbientLightReceived;
             fakevcnl4000.SensorException += SensorException_Handler;
 
-            await Task.Run(() => _sensors.Add(DeviceName(busName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(), null), fakevcnl4000));
+            await Task.Run(() => _devices.Add(DeviceName(busName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(), null), fakevcnl4000));
         }
         // ReSharper disable once InconsistentNaming
         private async Task InitI2cVCNL4000()
@@ -214,7 +199,7 @@ namespace HeadlessRobot
             vcnl4000.AmbientLightReceived += Vcnl4000_AmbientLightReceived;
             vcnl4000.SensorException += SensorException_Handler;
 
-            _sensors.Add(DeviceName(busName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(), null), vcnl4000);
+            _devices.Add(DeviceName(busName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(), null), vcnl4000);
         }
         private async Task InitI2cADS1115(byte channel)
         {
@@ -224,19 +209,19 @@ namespace HeadlessRobot
 
             IADS1115Device ads1115 = new ADS1115Device(device, channel);
             ads1115.ChannelChanged += Ads1115ChannelChanged;
-            _sensors.Add(DeviceName(busName, (byte)ADS1115_Constants.ADS1115_ADDRESS.GetHashCode(), null), ads1115);
+            _devices.Add(DeviceName(busName, (byte)ADS1115_Constants.ADS1115_ADDRESS.GetHashCode(), null), ads1115);
         }
         private async Task InitArduinoI2C()
         {
             const string busName = "I2C1";
             var bus = await FindI2CController(busName);
-            var device = await FindI2CDevice(bus, 0x41, I2cBusSpeed.FastMode, I2cSharingMode.Shared);
+            var device = await FindI2CDevice(bus, ArduinoSlaveAddress, I2cBusSpeed.FastMode, I2cSharingMode.Shared);
 
             var arduino = new ArduinoSensor(device, 100);
             arduino.ProximityReceived += Sonar_ProximityReceived;
             arduino.SensorException += SensorException_Handler;
 
-            _sensors.Add(DeviceName(busName, 0x40, null), arduino);
+            _devices.Add(DeviceName(busName, ArduinoSlaveAddress, null), arduino);
         }
         private void Sonar_ProximityReceived(object sender, IProximityEventArgs e)
         {

@@ -5,7 +5,7 @@ using Iot.Common;
 
 namespace ArduinoBridge
 {
-    public class ArduinoSensor : ICommonI2CDevice
+    public sealed class ArduinoSensor : ICommonI2CDevice
     {
         public event EventHandler<ProximtyEventArgs> ProximityReceived;
         public event EventHandler<ExceptionEventArgs> SensorException;
