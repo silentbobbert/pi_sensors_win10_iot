@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Iot.Common
 {
@@ -15,18 +16,18 @@ namespace Iot.Common
             _logErrorMethod = logErrorMethod;
         }
 
-        public void LogInfo(string message)
+        public async Task LogInfo(string message)
         {
             message = MessageFormatter(message);
             System.Diagnostics.Debug.WriteLine(message);
-            _logInfoMethod(message);
+            await Task.Run(() => _logInfoMethod(message));
         }
 
-        public void LogException(string message, Exception exception)
+        public async Task LogException(string message, Exception exception)
         {
             var formattedMessage = MessageFormatter(message, exception.Message);
             System.Diagnostics.Debug.WriteLine(formattedMessage);
-            _logErrorMethod(message, exception);
+            await Task.Run(() => _logErrorMethod(message, exception));
         }
 
         private string MessageFormatter(params string[] messageParts)
@@ -37,7 +38,7 @@ namespace Iot.Common
 
             sb.Append(Now.ToString("R"));
 
-            foreach (var messagePart in messageParts)
+            foreach (var messagePart in strings)
             {
                 sb.Append("-");
                 sb.Append(messagePart);

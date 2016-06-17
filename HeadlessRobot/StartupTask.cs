@@ -98,9 +98,8 @@ namespace HeadlessRobot
             _devices = new Dictionary<string, ICommonDevice>();
             await StartSensors();
 
-            _pca9685ServoContoller = await InitI2cServoController();
-            var sonarCoordinator = new SonarCoordinator(_pca9685ServoContoller, _devices.Single(d => d.Key == DeviceName("I2C1", ArduinoSlaveAddress, null)).Value as ArduinoSensor);
-            _devices.Add("sonarCoordinator", sonarCoordinator);
+            var sonarCoordinator = await InitSonarCoordinator();
+
             sonarCoordinator.Start();
 
             while (_runTask)
@@ -110,6 +109,29 @@ namespace HeadlessRobot
 
             await PostMessageToAPI("Robot Closing!");
             _deferral.Complete();
+        }
+
+        private async Task<SonarCoordinator> InitSonarCoordinator()
+        {
+            _pca9685ServoContoller = await InitI2cServoController();
+            var sonarCoordinator = new SonarCoordinator(_pca9685ServoContoller, _devices.Single(d => d.Key == DeviceName("I2C1", ArduinoSlaveAddress, null)).Value as ArduinoSensor);
+
+            sonarCoordinator.PositionFound += SonarCoordinator_PositionFound;
+            sonarCoordinator.SensorException += SonarCoordinator_SensorException;
+            _devices.Add("sonarCoordinator", sonarCoordinator);
+            return sonarCoordinator;
+        }
+
+        private void SonarCoordinator_SensorException(object sender, ArduinoBridge.ExceptionEventArgs e)
+        {
+            var message = $"Error Received from Sensor : \"{e.Message} \"";
+            _logIErrorAction(message, e.Exception);
+        }
+
+        private void SonarCoordinator_PositionFound(object sender, PositionalDistanceEventArgs e)
+        {
+            var message = $"Sonar Result Received {e.RawValue} Distance {e.Proximity} mm at Position {e.Angle}";
+            _logger.LogInfo(message);
         }
 
         private void TaskInstance_Canceled(IBackgroundTaskInstance sender, BackgroundTaskCancellationReason reason)
@@ -217,16 +239,11 @@ namespace HeadlessRobot
             var bus = await FindI2CController(busName);
             var device = await FindI2CDevice(bus, ArduinoSlaveAddress, I2cBusSpeed.FastMode, I2cSharingMode.Shared);
 
-            var arduino = new ArduinoSensor(device, 100);
-            arduino.ProximityReceived += Sonar_ProximityReceived;
-            arduino.SensorException += SensorException_Handler;
+            var arduino = new ArduinoSensor(device, 25);
+            //arduino.ProximityReceived += Sonar_ProximityReceived;
+            //arduino.SensorException += SensorException_Handler;
 
             _devices.Add(DeviceName(busName, ArduinoSlaveAddress, null), arduino);
-        }
-        private void Sonar_ProximityReceived(object sender, IProximityEventArgs e)
-        {
-            var message = $"Sonar Result Received {e.RawValue} Distance {e.Proximity} mm";
-            _logger.LogInfo(message);
         }
         private async Task<DeviceInformation> FindI2CController(string busName)
         {
@@ -265,19 +282,16 @@ namespace HeadlessRobot
         private void SensorException_Handler(object sender, IExceptionEventArgs e)
         {
             var message = $"Error Received from Sensor : \"{e.Message} \"";
-            _logIErrorAction($"Error Received from Sensor : \"{e.Message} \"", e.Exception);
+            _logIErrorAction(message, e.Exception);
         }
         private void Ads1115ChannelChanged(object sender, ChannelReadingDone e)
         {
             var convertedDistance = _sharpSensorConverter.Convert(e.RawValue);
             var message = $"Channel {e.Channel + 1} Message Received - Raw Value {e.RawValue} - Converted Distance {convertedDistance:F2} mm";
             _logInfoAction(message);
-
-            
         }
         private string DeviceName(string busName, byte slaveAddress, string append)
         {
-
             var name = $"{busName}\\0x{slaveAddress:x8}";
             if (!string.IsNullOrEmpty(append))
             {

@@ -6,5 +6,6 @@ namespace SonarManager
     {
         public int Angle { get; internal set; }
         public double Proximity { get; internal set; }
+        public double RawValue { get; internal set; }
     }
 }

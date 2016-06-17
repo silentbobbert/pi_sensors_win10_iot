@@ -140,7 +140,7 @@
       <Name>ArduinoBridge</Name>
     </ProjectReference>
     <ProjectReference Include="..\Iot.Common\Iot.Common.csproj">
-      <Project>{5692bfa7-5684-4c8c-9d35-c83b3f09307b}</Project>
+      <Project>{5692BFA7-5684-4C8C-9D35-C83B3F09307B}</Project>
       <Name>Iot.Common</Name>
     </ProjectReference>
     <ProjectReference Include="..\PCA9685PWMServoContoller\PCA9685PWMServoContoller.csproj">
@@ -165,6 +165,7 @@
       <Name>Windows IoT Extensions for the UWP</Name>
     </SDKReference>
   </ItemGroup>
+  <ItemGroup />
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' or '$(VisualStudioVersion)' &lt; '14.0' ">
     <VisualStudioVersion>14.0</VisualStudioVersion>
   </PropertyGroup>

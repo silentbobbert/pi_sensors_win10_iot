@@ -1,10 +1,11 @@
 ﻿using System;
+using System.Threading.Tasks;
 
 namespace Iot.Common
 {
     public interface ILogger
     {
-        void LogInfo(string message);
-        void LogException(string message, Exception exception);
+        Task LogInfo(string message);
+        Task LogException(string message, Exception exception);
     }
 }

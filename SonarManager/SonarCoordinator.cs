@@ -18,68 +18,75 @@ namespace SonarManager
         private readonly int _maxServoSetting;
 
         private ProximtyEventArgs _lastReading;
+        private bool _stopSweeping = false;
+        private readonly double _arcUnitsPerDegree;
+        private readonly int _stepSize;
+        private readonly Func<bool> _haveReading;
 
         public SonarCoordinator(PCA9685ServoContoller contoller, ArduinoSensor sensor)
         {
             _contoller = contoller;
             _sensor = sensor;
 
-            _sensor.ProximityReceived += _sensor_ProximityReceived;
+            _sensor.ProximityReceived += (sender, args) => _lastReading = args;
+            _sensor.SensorException += (sender, args) => SensorException?.Invoke(this, args); //Pass exceptions from Arduino "sensor" along.
 
             _minServoSetting = 250;
             _maxServoSetting = 800;
 
+            _contoller.ResetDevice();
             _contoller.SetPwmUpdateRate(60);
             _contoller.SetPwm(PwmChannel.C0, 0, _minServoSetting);
             Task.Delay(1000).Wait();
 
-        }
-
-        private void _sensor_ProximityReceived(object sender, ProximtyEventArgs e)
-        {
-            _lastReading = e;
+            _arcUnitsPerDegree = (_maxServoSetting - _minServoSetting)/180d;
+            _stepSize = (int)Math.Floor(_arcUnitsPerDegree*5);
+            _haveReading = () => _lastReading?.RawValue != default(double);
         }
 
         private void Sweep()
         {
-            var arcUnitsPerDegree = (_maxServoSetting - _minServoSetting)/180d; //3.05 degrees per unit.
-            var stepSize = (int)Math.Floor(arcUnitsPerDegree*5); //10 Degrees
+            var position = _minServoSetting;
+            SetPositionAndGetReading(position);
 
-            Func<bool> haveReading = () => _lastReading != null;
-
-            for (var position = _minServoSetting; position < _maxServoSetting;)
+            while (position < _maxServoSetting)
             {
-                position = position + stepSize;
-                haveReading = SetPositionAndGetReading(position, haveReading);
+                position = position + _stepSize;
+                SetPositionAndGetReading(position);
+                _lastReading = null;
             }
 
-            for (var position = _maxServoSetting; position > _minServoSetting;)
+            SetPositionAndGetReading(_maxServoSetting);
+
+            while (position > _minServoSetting)
             {
-                position = position - stepSize;
-                haveReading = SetPositionAndGetReading(position, haveReading);
+                position = position - _stepSize;
+                SetPositionAndGetReading(position);
+                _lastReading = null;
+
             }
+            
         }
 
-        private Func<bool> SetPositionAndGetReading(int position, Func<bool> haveReading)
+        private void SetPositionAndGetReading(int position)
         {
             try
             {
-                Task.Delay(100).Wait();
-                //SpinWait.SpinUntil(haveReading);
                 _contoller.SetPwm(PwmChannel.C0, 0, position);
-                PositionFound?.Invoke(this, new PositionalDistanceEventArgs {Angle = position, Proximity = _lastReading.Proximity});
-                return null;
+                Task.Delay(50).Wait();
+
+                if (!_haveReading()) return;
+                PositionFound?.Invoke(this, new PositionalDistanceEventArgs { Angle = position, Proximity = _lastReading.Proximity, RawValue = _lastReading.RawValue });
             }
             catch (Exception ex)
             {
                 SensorException?.Invoke(this, new ExceptionEventArgs { Exception = ex, Message = "An error occured setting Angle and getting distance." });
             }
-            return null;
         }
 
         public void Start()
         {
-            while (true)
+            while (!_stopSweeping)
             {
                 Sweep();
             }
@@ -88,6 +95,7 @@ namespace SonarManager
 
         public void Dispose()
         {
+            _stopSweeping = true;
             PositionFound = null;
             SensorException = null;
         }

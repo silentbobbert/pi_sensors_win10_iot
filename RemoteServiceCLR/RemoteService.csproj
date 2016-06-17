@@ -124,6 +124,9 @@
     <Folder Include="App_Data\" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\HeadlessRobot\DTOs\SimpleDTO.cs">
+      <Link>Models\SimpleDTO.cs</Link>
+    </Compile>
     <Compile Include="App_Start\FilterConfig.cs" />
     <Compile Include="App_Start\JsonFormatter.cs" />
     <Compile Include="App_Start\WebApiConfig.cs" />
@@ -131,7 +134,6 @@
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>
     </Compile>
-    <Compile Include="Models\SimpleDTO.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

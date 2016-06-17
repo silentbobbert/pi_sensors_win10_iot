@@ -1,6 +1,6 @@
 ﻿using System.Threading.Tasks;
 using System.Web.Http;
-using RemoteService.Models;
+using HeadlessRobot.DTOs;
 
 namespace RemoteService.Controllers
 {

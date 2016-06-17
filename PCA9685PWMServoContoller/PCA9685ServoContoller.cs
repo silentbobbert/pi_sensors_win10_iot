@@ -2,7 +2,6 @@
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Windows.Devices.I2c;
-using Iot.Common;
 
 namespace PCA9685PWMServoContoller
 {
