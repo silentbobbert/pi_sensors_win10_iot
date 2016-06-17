@@ -124,8 +124,8 @@
     <Folder Include="App_Data\" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\HeadlessRobot\DTOs\SimpleDTO.cs">
-      <Link>Models\SimpleDTO.cs</Link>
+    <Compile Include="..\HeadlessRobot\DTOs\DataChanged.cs">
+      <Link>Models\DataChanged.cs</Link>
     </Compile>
     <Compile Include="App_Start\FilterConfig.cs" />
     <Compile Include="App_Start\JsonFormatter.cs" />

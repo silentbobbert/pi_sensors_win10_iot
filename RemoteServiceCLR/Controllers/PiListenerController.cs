@@ -23,9 +23,9 @@ namespace RemoteService.Controllers
 
         // POST api/PiListener
         [HttpPost, Route("message")]
-        public async Task<IHttpActionResult> Post([FromBody]SimpleDTO value)
+        public async Task<IHttpActionResult> Post([FromBody]DataChanged value)
         {
-            return Ok(new { Message = $"Your message: {value.Message} was received."});
+            return Ok(new { Message = $"Your message was received."});
         }
 
         // PUT api/PiListener/5
