@@ -1,4 +1,5 @@
 #include <Wire.h>
+#include "ADS1015.h"
 
 #define MyAddress 0x41
 #define trigPin 9
@@ -12,7 +13,10 @@
 
 //byte resultRegister[RESULTS_SIZE];
 //byte commandRegister[COMMAND_REGISTER_SIZE];
-volatile unsigned short Value_Duration;
+volatile unsigned short SonarPulseLength;
+volatile int16_t IRValue;
+
+Adafruit_ADS1115 ads;
 
 void setup()
 {
@@ -23,12 +27,22 @@ void setup()
 	Wire.begin(MyAddress);
 	//Wire.onReceive(receiveEvent);
 	Wire.onRequest(requestEvent);
+
+	ads.begin();
 }
 
 void loop()
 {
-	Value_Duration = Ping();
-	ReactToDistance(Value_Duration);
+	SonarPulseLength = Ping();
+	ReactToDistance(SonarPulseLength);
+	IRValue = TakeIRReading();
+}
+
+int16_t TakeIRReading()
+{
+	int16_t adc0;
+	adc0 = ads.readADC_SingleEnded(0);
+	return adc0;
 }
 
 /*Win10 IoT can send Command Bytes to a command register etc*/
@@ -51,14 +65,21 @@ void receiveEvent(int numberOfBytes)
 /*Win10 IoT can read data from this slave. Can use information in the Command to vary response*/
 void requestEvent()
 {
-	byte resultArray[2];
-	unsigned short duration = (unsigned short)Value_Duration;
+	byte sonarArray[2];
+	unsigned short duration = (unsigned short)SonarPulseLength;
 
-	resultArray[0] = (byte)((duration >> 8) & 0xff);
-	resultArray[1] = (byte)(duration & 0xff);
+	sonarArray[0] = (byte)((duration >> 8) & 0xff);
+	sonarArray[1] = (byte)(duration & 0xff);
 	
-	Wire.write(resultArray, 2);
+	Wire.write(sonarArray, 2);
 	ReactToDistance(duration);
+
+  byte irArray[2];
+  int16_t raw = (int16_t)IRValue;
+
+  irArray[0] = (byte)((raw >> 8) & 0xff);
+  irArray[1] = (byte)(raw & 0xff);
+  Wire.write(irArray, 2);  
 }
 
 unsigned short Ping()
@@ -87,8 +108,7 @@ void ReactToDistance(unsigned short duration)
 	}
 	else 
 	{
-		digitalWrite(onBoardLED, LOW);   // turn the LED on (HIGH is the voltage level)
+		digitalWrite(onBoardLED, LOW);   // turn the LED on (LOW is the voltage level)
 	}
 }
-
 

@@ -175,8 +175,8 @@ namespace HeadlessRobot
             IEnumerable<Task> devicesToStart = new[]
             {
                 //InitSimulator(),
-                //InitI2cVCNL4000(),
-                //InitI2cADS1115(0x01),
+                InitI2cVCNL4000(),
+                InitI2cADS1115(0x01),
                 InitArduinoI2C()
             };
 

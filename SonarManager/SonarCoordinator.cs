@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Threading;
 using System.Threading.Tasks;
 using ArduinoBridge;
 using Iot.Common;
@@ -13,23 +12,22 @@ namespace SonarManager
         public event EventHandler<ExceptionEventArgs> SensorException;
 
         private readonly PCA9685ServoContoller _contoller;
-        private readonly ArduinoSensor _sensor;
         private readonly int _minServoSetting;
         private readonly int _maxServoSetting;
 
         private ProximtyEventArgs _lastReading;
-        private bool _stopSweeping = false;
+        private bool _stopSweeping;
         private readonly double _arcUnitsPerDegree;
         private readonly int _stepSize;
         private readonly Func<bool> _haveReading;
+        private int _currentPosition;
 
         public SonarCoordinator(PCA9685ServoContoller contoller, ArduinoSensor sensor)
         {
             _contoller = contoller;
-            _sensor = sensor;
 
-            _sensor.ProximityReceived += (sender, args) => _lastReading = args;
-            _sensor.SensorException += (sender, args) => SensorException?.Invoke(this, args); //Pass exceptions from Arduino "sensor" along.
+            sensor.ProximityReceived += (sender, args) => _lastReading = args;
+            sensor.SensorException += (sender, args) => SensorException?.Invoke(this, args); //Pass exceptions from Arduino "sensor" along.
 
             _minServoSetting = 250;
             _maxServoSetting = 800;
@@ -37,8 +35,9 @@ namespace SonarManager
             _contoller.ResetDevice();
             _contoller.SetPwmUpdateRate(60);
             _contoller.SetPwm(PwmChannel.C0, 0, _minServoSetting);
-            Task.Delay(1000).Wait();
+            Task.Delay(500).Wait();
 
+            _currentPosition = _minServoSetting;
             _arcUnitsPerDegree = (_maxServoSetting - _minServoSetting)/180d;
             _stepSize = (int)Math.Floor(_arcUnitsPerDegree*5);
             _haveReading = () => _lastReading?.RawValue != default(double);
@@ -46,26 +45,49 @@ namespace SonarManager
 
         private void Sweep()
         {
-            var position = _minServoSetting;
-            SetPositionAndGetReading(position);
+            _currentPosition = GetMinimumReading();
+            _currentPosition = ClockWiseSweep(_currentPosition);
+            _currentPosition = GetMaximumReading();
+            AntiClockWiseSweep(_currentPosition);
+            GetMinimumReading();
+        }
 
+        private int AntiClockWiseSweep(int position)
+        {
+            while (position > _minServoSetting)
+            {
+                position = position - _stepSize;
+                SetPositionAndGetReading(position);
+                _lastReading = null;
+            }
+            return position;
+        }
+
+        private int ClockWiseSweep(int position)
+        {
             while (position < _maxServoSetting)
             {
                 position = position + _stepSize;
                 SetPositionAndGetReading(position);
                 _lastReading = null;
             }
+            return position;
+        }
 
-            SetPositionAndGetReading(_maxServoSetting);
+        private int GetMaximumReading()
+        {
+            _currentPosition = _maxServoSetting;
+            SetPositionAndGetReading(_currentPosition);
+            _lastReading = null;
+            return _currentPosition;
+        }
 
-            while (position > _minServoSetting)
-            {
-                position = position - _stepSize;
-                SetPositionAndGetReading(position);
-                _lastReading = null;
-
-            }
-            
+        private int GetMinimumReading()
+        {
+            var position = _minServoSetting;
+            SetPositionAndGetReading(position);
+            _lastReading = null;
+            return position;
         }
 
         private void SetPositionAndGetReading(int position)
@@ -74,14 +96,19 @@ namespace SonarManager
             {
                 _contoller.SetPwm(PwmChannel.C0, 0, position);
                 Task.Delay(50).Wait();
-
-                if (!_haveReading()) return;
-                PositionFound?.Invoke(this, new PositionalDistanceEventArgs { Angle = position, Proximity = _lastReading.Proximity, RawValue = _lastReading.RawValue });
+                if(_haveReading())
+                    PositionFound?.Invoke(this, new PositionalDistanceEventArgs { Angle = Angle(position), Proximity = _lastReading.Proximity, RawValue = _lastReading.RawValue });
             }
             catch (Exception ex)
             {
                 SensorException?.Invoke(this, new ExceptionEventArgs { Exception = ex, Message = "An error occured setting Angle and getting distance." });
             }
+        }
+
+        private int Angle(double position)
+        {
+            var angle = (int)Math.Round((position - _minServoSetting) / _arcUnitsPerDegree, MidpointRounding.AwayFromZero);
+            return angle;
         }
 
         public void Start()
@@ -90,7 +117,6 @@ namespace SonarManager
             {
                 Sweep();
             }
-            
         }
 
         public void Dispose()

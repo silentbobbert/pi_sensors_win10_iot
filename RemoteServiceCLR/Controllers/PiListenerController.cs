@@ -1,6 +1,8 @@
-﻿using System.Threading.Tasks;
+﻿using System.Diagnostics;
+using System.Threading.Tasks;
 using System.Web.Http;
 using HeadlessRobot.DTOs;
+using Newtonsoft.Json;
 
 namespace RemoteService.Controllers
 {
@@ -25,6 +27,7 @@ namespace RemoteService.Controllers
         [HttpPost, Route("message")]
         public async Task<IHttpActionResult> Post([FromBody]DataChanged value)
         {
+            Debug.WriteLine(JsonConvert.SerializeObject(value));
             return Ok(new { Message = $"Your message was received."});
         }
 
