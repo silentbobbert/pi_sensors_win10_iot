@@ -39,16 +39,18 @@ namespace ArduinoBridge
         {
             try
             {
-                var readBytes = new byte[2];
-                _device.Read(readBytes);
+                var arduinoBytes = new byte[4];
+                _device.Read(arduinoBytes);
 
-                var pulseWidth = (ushort)(readBytes[0] << 8 | readBytes[1]);
+                var sonarWidth = (ushort)(arduinoBytes[0] << 8 | arduinoBytes[1]);
+                var adcReading = (ushort)(arduinoBytes[2] << 8 | arduinoBytes[3]);
 
                 ProximityReceived?.Invoke(this, new ProximtyEventArgs
                 {
-                    RawValue = pulseWidth,
-                    Proximity = Math.Max(0, ((pulseWidth/2d)/2.91d) - 0.5d) //The sensors are about 5mm inside the casing of the device.
+                    RawValue = sonarWidth,
+                    Proximity = Math.Max(0, ((sonarWidth / 2d)/2.91d) - 0.5d) //The sensors are about 5mm inside the casing of the device.
                 });
+
             }
             catch (Exception ex)
             {

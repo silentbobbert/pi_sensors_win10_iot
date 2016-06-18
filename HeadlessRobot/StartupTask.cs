@@ -35,11 +35,11 @@ namespace HeadlessRobot
         private const int ArduinoSlaveAddress = 0x41;
         
         private BackgroundTaskDeferral _deferral;
-        private Dictionary<string, ICommonDevice> _devices;
+        private readonly Dictionary<string, ICommonDevice> _devices;
         private Logger _logger;
         private Action<string> _logInfoAction;
         private Action<string, Exception> _logIErrorAction;
-        private RawValueConverter _sharpSensorConverter;
+        private readonly RawValueConverter _sharpSensorConverter;
         private bool _runTask = true;
         private readonly Uri _apiAddress = new Uri("https://10.21.9.149/RemoteService/api/pilistener/message");
         private static readonly DataChanged MessageObject = new DataChanged();
