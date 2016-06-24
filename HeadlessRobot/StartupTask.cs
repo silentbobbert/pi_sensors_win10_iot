@@ -1,13 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.ApplicationModel;
 using Windows.ApplicationModel.Background;
 using Windows.Devices.Enumeration;
 using Windows.Devices.I2c;
+using Windows.Devices.SerialCommunication;
 using Windows.Foundation;
 using Windows.Security.Cryptography.Certificates;
 using Windows.Storage.Streams;
@@ -48,6 +51,8 @@ namespace HeadlessRobot
 
         public StartupTask()
         {
+            //_readCancellationTokenSource = new CancellationTokenSource();
+            _listOfDevices = new ObservableCollection<DeviceInformation>();
             SetupLogging();
             _sharpSensorConverter = new RawValueConverter(SharpConversionFactor, SharpExponent);
             _devices = new Dictionary<string, ICommonDevice>();
@@ -91,7 +96,9 @@ namespace HeadlessRobot
             _deferral = taskInstance.GetDeferral();
             taskInstance.Canceled += TaskInstance_Canceled;
 
-            await StartDevices();
+            await ListAvailablePorts();
+
+            //await StartDevices();
 
             while (_runTask)
             {
@@ -341,6 +348,127 @@ namespace HeadlessRobot
                 name = $"{name}\\{append}";
             }
             return name;
+        }
+
+
+
+
+        private readonly ObservableCollection<DeviceInformation> _listOfDevices;
+        private CancellationTokenSource _readCancellationTokenSource;
+        private SerialDevice _serialPort = null;
+        private DataReader _dataReaderObject = null;
+
+        /// <summary>
+        /// ListAvailablePorts
+        /// - Use SerialDevice.GetDeviceSelector to enumerate all serial devices
+        /// - Attaches the DeviceInformation to the ListBox source so that DeviceIds are displayed
+        /// </summary>
+        private async Task ListAvailablePorts()
+        {
+            try
+            {
+                var aqs = SerialDevice.GetDeviceSelector();
+                var devices = await DeviceInformation.FindAllAsync(aqs);
+
+                foreach (var device in devices)
+                {
+                    _listOfDevices.Add(device);
+                }
+            }
+            catch (Exception ex)
+            {
+                await _logger.LogException("An error occured listing Serial Devices", ex);
+            }
+        }
+
+        /// <summary>
+        /// - Create a DataReader object
+        /// - Create an async task to read from the SerialDevice InputStream
+        /// </summary>
+        private async Task Listen()
+        {
+            try
+            {
+                if (_serialPort == null) return;
+
+                _dataReaderObject = new DataReader(_serialPort.InputStream);
+
+                // keep reading the serial input
+                while (true)
+                {
+                    await ReadAsync(_readCancellationTokenSource.Token);
+                }
+            }
+            catch (Exception ex)
+            {
+                if (ex.GetType().Name == "TaskCanceledException")
+                {
+                    await _logger.LogInfo("Reading task was cancelled, closing device and cleaning up");
+                    CloseDevice();
+                }
+                else
+                {
+                    await _logger.LogException("An error occured listening to the serial port", ex);
+                }
+            }
+            finally
+            {
+                // Cleanup once complete
+                if (_dataReaderObject != null)
+                {
+                    _dataReaderObject.DetachStream();
+                    _dataReaderObject = null;
+                }
+            }
+        }
+        /// <summary>
+        /// ReadAsync: Task that waits on data and reads asynchronously from the serial device InputStream
+        /// </summary>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
+        private async Task<string> ReadAsync(CancellationToken cancellationToken)
+        {
+            const uint readBufferLength = 1024;
+
+            // If task cancellation was requested, comply
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // Set InputStreamOptions to complete the asynchronous read operation when one or more bytes is available
+            _dataReaderObject.InputStreamOptions = InputStreamOptions.Partial;
+
+            // Create a task object to wait for data on the serialPort.InputStream
+            var loadAsyncTask = _dataReaderObject.LoadAsync(readBufferLength).AsTask(cancellationToken);
+
+            // Launch the task and wait
+            var bytesRead = await loadAsyncTask;
+            return bytesRead > 0 ? _dataReaderObject.ReadString(bytesRead) : null;
+        }
+
+        /// <summary>
+        /// CancelReadTask:
+        /// - Uses the ReadCancellationTokenSource to cancel read operations
+        /// </summary>
+        private void CancelReadTask()
+        {
+            if (_readCancellationTokenSource == null) return;
+
+            if (!_readCancellationTokenSource.IsCancellationRequested)
+            {
+                _readCancellationTokenSource.Cancel();
+            }
+        }
+
+        /// <summary>
+        /// CloseDevice:
+        /// - Disposes SerialDevice object
+        /// - Clears the enumerated device Id list
+        /// </summary>
+        private void CloseDevice()
+        {
+            CancelReadTask();
+            _serialPort?.Dispose();
+            _serialPort = null;
+            _listOfDevices.Clear();
         }
     }
 }
