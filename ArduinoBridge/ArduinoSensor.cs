@@ -39,11 +39,15 @@ namespace ArduinoBridge
         {
             try
             {
-                var arduinoBytes = new byte[4];
+                var arduinoBytes = new byte[10];
                 _device.Read(arduinoBytes);
 
                 var sonarWidth = (ushort)(arduinoBytes[0] << 8 | arduinoBytes[1]);
-                var adcReading = (ushort)(arduinoBytes[2] << 8 | arduinoBytes[3]);
+
+                var adcReading1 = (ushort)(arduinoBytes[2] << 8 | arduinoBytes[3]);
+                var adcReading2 = (ushort)(arduinoBytes[4] << 8 | arduinoBytes[5]);
+                var adcReading3 = (ushort)(arduinoBytes[6] << 8 | arduinoBytes[7]);
+                var adcReading4 = (ushort)(arduinoBytes[8] << 8 | arduinoBytes[9]);
 
                 ProximityReceived?.Invoke(this, new ProximtyEventArgs
                 {

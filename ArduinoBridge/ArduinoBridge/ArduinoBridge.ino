@@ -1,7 +1,7 @@
 #include <Wire.h>
 #include "ADS1015.h"
 
-#define MyAddress 0x41
+#define MyAddress 0x30
 #define trigPin 9
 #define echoPin 8
 #define onBoardLED 13
@@ -14,7 +14,7 @@
 //byte resultRegister[RESULTS_SIZE];
 //byte commandRegister[COMMAND_REGISTER_SIZE];
 volatile unsigned short SonarPulseLength;
-volatile int16_t IRValue;
+volatile int16_t IRValues[4];
 
 Adafruit_ADS1115 ads;
 
@@ -27,6 +27,7 @@ void setup()
 	Wire.begin(MyAddress);
 	//Wire.onReceive(receiveEvent);
 	Wire.onRequest(requestEvent);
+	Serial.begin(19200);
 
 	ads.begin();
 }
@@ -35,14 +36,23 @@ void loop()
 {
 	SonarPulseLength = Ping();
 	ReactToDistance(SonarPulseLength);
-	IRValue = TakeIRReading();
+	TakeIRReading(IRValues);
 }
 
-int16_t TakeIRReading()
+void TakeIRReading(volatile int16_t *buffer)
 {
-	int16_t adc0;
-	adc0 = ads.readADC_SingleEnded(0);
-	return adc0;
+	buffer[0] = ads.readADC_SingleEnded(0);
+	Serial.print("ADC 1: ");
+	Serial.println(buffer[0]);
+	buffer[1] = ads.readADC_SingleEnded(1);
+	Serial.print("ADC 2: ");
+	Serial.println(buffer[1]);
+	buffer[2] = ads.readADC_SingleEnded(2);
+	Serial.print("ADC 3: ");
+	Serial.println(buffer[2]);
+	buffer[3] = ads.readADC_SingleEnded(3);
+	Serial.print("ADC 4: ");
+	Serial.println(buffer[3]);
 }
 
 /*Win10 IoT can send Command Bytes to a command register etc*/
@@ -65,21 +75,27 @@ void receiveEvent(int numberOfBytes)
 /*Win10 IoT can read data from this slave. Can use information in the Command to vary response*/
 void requestEvent()
 {
-	byte sonarArray[2];
+	byte resultsArray[10];
 	unsigned short duration = (unsigned short)SonarPulseLength;
 
-	sonarArray[0] = (byte)((duration >> 8) & 0xff);
-	sonarArray[1] = (byte)(duration & 0xff);
-	
-	Wire.write(sonarArray, 2);
+	resultsArray[0] = (byte)((duration >> 8) & 0xff);
+	resultsArray[1] = (byte)(duration & 0xff);
+
+	resultsArray[2] = (byte)((IRValues[0] >> 8) & 0xff);
+	resultsArray[3] = (byte)(IRValues[0] & 0xff);
+
+	resultsArray[4] = (byte)((IRValues[1] >> 8) & 0xff);
+	resultsArray[5] = (byte)(IRValues[1] & 0xff);
+
+	resultsArray[6] = (byte)((IRValues[1] >> 8) & 0xff);
+	resultsArray[7] = (byte)(IRValues[1] & 0xff);
+
+	resultsArray[8] = (byte)((IRValues[1] >> 8) & 0xff);
+	resultsArray[9] = (byte)(IRValues[1] & 0xff);
+
+
+	Wire.write(resultsArray, 10);
 	ReactToDistance(duration);
-
-  byte irArray[2];
-  int16_t raw = (int16_t)IRValue;
-
-  irArray[0] = (byte)((raw >> 8) & 0xff);
-  irArray[1] = (byte)(raw & 0xff);
-  Wire.write(irArray, 2);  
 }
 
 unsigned short Ping()
@@ -94,6 +110,8 @@ unsigned short Ping()
 	duration = pulseIn(echoPin, HIGH);
 	if(duration < 60000)
 	{
+		Serial.print("Duration: ");
+		Serial.println(duration);
 		return (unsigned short)duration;
 	}
 	return 60000;

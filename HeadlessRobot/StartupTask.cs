@@ -35,8 +35,9 @@ namespace HeadlessRobot
     {
         private const double SharpConversionFactor = 4221057.491;
         private const double SharpExponent = 1.26814;
-        private const int ArduinoSlaveAddress = 0x41;
-        
+        private const int ArduinoSlaveAddress = 0x30;
+        private const int ServoControllerAddress = 0x40;
+
         private BackgroundTaskDeferral _deferral;
         private readonly Dictionary<string, ICommonDevice> _devices;
         private Logger _logger;
@@ -96,9 +97,9 @@ namespace HeadlessRobot
             _deferral = taskInstance.GetDeferral();
             taskInstance.Canceled += TaskInstance_Canceled;
 
-            await ListAvailablePorts();
+            //await ListAvailablePorts(); //Does not work on RPi3 - yet. Should work on RPi2...
 
-            //await StartDevices();
+            await StartDevices();
 
             while (_runTask)
             {
@@ -182,8 +183,8 @@ namespace HeadlessRobot
             IEnumerable<Task> devicesToStart = new[]
             {
                 //InitSimulator(),
-                InitI2cVCNL4000(),
-                InitI2cADS1115(0x01),
+                //InitI2cVCNL4000(),
+                //InitI2cADS1115(0x01),
                 InitArduinoI2C()
             };
 
@@ -198,7 +199,7 @@ namespace HeadlessRobot
         {
             const string busName = "I2C1";
             var bus = await FindI2CController(busName);
-            var device = await FindI2CDevice(bus, 0x40, I2cBusSpeed.FastMode, I2cSharingMode.Shared);
+            var device = await FindI2CDevice(bus, ServoControllerAddress, I2cBusSpeed.FastMode, I2cSharingMode.Shared);
 
             var servoController = new PCA9685ServoContoller(device);
             return servoController;
