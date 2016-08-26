@@ -49,6 +49,7 @@ namespace HeadlessRobot
         private readonly Uri _apiAddress = new Uri("https://10.21.9.149/RemoteService/api/pilistener/message");
         private static readonly DataChanged MessageObject = new DataChanged();
         private readonly object _lock = new object();
+        private readonly object _deviceStartUplock = new object();
         private HttpClient _client;
 
         private readonly ObservableCollection<DeviceInformation> _listOfDevices;
@@ -278,8 +279,7 @@ namespace HeadlessRobot
             vcnl4000.ProximityReceived += ProximityReceived_Handler;
             vcnl4000.AmbientLightReceived += Vcnl4000_AmbientLightReceived;
             vcnl4000.SensorException += SensorException_Handler;
-
-            _devices.Add(DeviceName(BusName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(), null), vcnl4000);
+            AddDevice((byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(), vcnl4000);
         }
         // ReSharper disable once InconsistentNaming
         private async Task InitI2cADS1115(int slaveAddress, byte channel)
@@ -288,14 +288,23 @@ namespace HeadlessRobot
 
             IADS1115Device ads1115 = new ADS1115Device(device, channel);
             ads1115.ChannelChanged += Ads1115ChannelChanged;
-            _devices.Add(DeviceName(BusName, (byte)slaveAddress, null), ads1115);
+            AddDevice(slaveAddress, ads1115);
         }
+
+        private void AddDevice(int slaveAddress, ICommonDevice device)
+        {
+            lock (_deviceStartUplock)
+            {
+                _devices.Add(DeviceName(BusName, (byte)slaveAddress, null), device);
+            }
+        }
+
         private async Task InitArduinoI2C()
         {
             var device = await FindI2CDevice(_I2CBus, ArduinoSlaveAddress, I2cBusSpeed.FastMode, I2cSharingMode.Shared);
 
             var arduino = new ArduinoSensor(device, 25);
-            _devices.Add(DeviceName(BusName, ArduinoSlaveAddress, null), arduino);
+            AddDevice(ArduinoSlaveAddress, arduino);
         }
         private async Task<DeviceInformation> FindI2CController(string busName)
         {
@@ -370,23 +379,29 @@ namespace HeadlessRobot
 
                 MessageObject.Error = null;
 
-                var reading = MessageObject.IRSensorReadings
-                    .DefaultIfEmpty(new IRSensorReading
+                IRSensorReading reading;
+
+                if (MessageObject.IRSensorReadings.ContainsKey(e.SlaveAddress))
+                {
+                    reading = MessageObject.IRSensorReadings[e.SlaveAddress];
+
+                    reading.SlaveAddress = e.SlaveAddress;
+                    reading.IRSensorDistance = convertedDistance;
+                    reading.IRSensorRaw = e.RawValue;
+
+                }
+                else
+                {
+                    reading = new IRSensorReading
                     {
                         IRSensorDistance = convertedDistance,
                         IRSensorRaw = e.RawValue,
                         SlaveAddress = e.SlaveAddress
-                    }).First(s => s.SlaveAddress == e.SlaveAddress);
+                    };
 
-                reading.SlaveAddress = e.SlaveAddress;
-                reading.IRSensorDistance = convertedDistance;
-                reading.IRSensorRaw = e.RawValue;
-
-                if (!MessageObject.IRSensorReadings.Any(s => s.SlaveAddress == e.SlaveAddress))
-                {
-                    MessageObject.IRSensorReadings.Add(reading);
+                    MessageObject.IRSensorReadings.Add(e.SlaveAddress, reading);
                 }
-                
+                    
                 PostMessageToAPI();
             }
 

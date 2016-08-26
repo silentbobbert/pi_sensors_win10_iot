@@ -7,7 +7,7 @@ namespace HeadlessRobot.DTOs
     {
         public DataChanged()
         {
-            IRSensorReadings = new List<IRSensorReading>();
+            IRSensorReadings = new Dictionary<int, IRSensorReading>();
         }
         public Exception Error { get; set; }
         public int AmbientLight { get; set; }
@@ -17,6 +17,6 @@ namespace HeadlessRobot.DTOs
         public double SonarSensorRaw { get; set; }
         public double SonarSensorDistance { get; set; }
         // ReSharper disable once InconsistentNaming
-        public IList<IRSensorReading> IRSensorReadings { get; set; }
+        public IDictionary<int, IRSensorReading> IRSensorReadings { get; set; }
     }
 }
