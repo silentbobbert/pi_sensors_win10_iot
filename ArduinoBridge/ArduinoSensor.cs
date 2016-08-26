@@ -14,6 +14,11 @@ namespace ArduinoBridge
         private ThreadPoolTimer _arduinoTimer;
         private readonly double _sensorPollInterval;
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="device">The Arduino device</param>
+        /// <param name="interval">Poll Interval in ms</param>
         public ArduinoSensor(I2cDevice device, double interval)
         {
             _device = device;
@@ -44,10 +49,10 @@ namespace ArduinoBridge
 
                 var sonarWidth = (ushort)(arduinoBytes[0] << 8 | arduinoBytes[1]);
 
-                var adcReading1 = (ushort)(arduinoBytes[2] << 8 | arduinoBytes[3]);
-                var adcReading2 = (ushort)(arduinoBytes[4] << 8 | arduinoBytes[5]);
-                var adcReading3 = (ushort)(arduinoBytes[6] << 8 | arduinoBytes[7]);
-                var adcReading4 = (ushort)(arduinoBytes[8] << 8 | arduinoBytes[9]);
+                //var adcReading1 = (ushort)(arduinoBytes[2] << 8 | arduinoBytes[3]);
+                //var adcReading2 = (ushort)(arduinoBytes[4] << 8 | arduinoBytes[5]);
+                //var adcReading3 = (ushort)(arduinoBytes[6] << 8 | arduinoBytes[7]);
+                //var adcReading4 = (ushort)(arduinoBytes[8] << 8 | arduinoBytes[9]);
 
                 ProximityReceived?.Invoke(this, new ProximtyEventArgs
                 {

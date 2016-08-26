@@ -10,5 +10,6 @@ namespace ADS1115Adapter
     {
         public int RawValue { get; set; }
         public byte Channel { get; set; }
+        public int SlaveAddress { get; internal set; }
     }
 }

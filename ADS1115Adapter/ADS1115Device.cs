@@ -14,19 +14,19 @@ namespace ADS1115Adapter
     {
         public event EventHandler<ChannelReadingDone> ChannelChanged;
 
-        private I2cDevice ads1115;
+        private readonly I2cDevice _ads1115;
         private readonly byte _channelsToReport;
         private ThreadPoolTimer _ads1115Timer;
 
         public ADS1115Device(I2cDevice device, byte channelsToReport)
         {
-            ads1115 = device;
+            _ads1115 = device;
             _channelsToReport = channelsToReport;
         }
 
         public void Dispose()
         {
-            ads1115.Dispose();
+            _ads1115.Dispose();
             _ads1115Timer = null;
         }
 
@@ -54,7 +54,7 @@ namespace ADS1115Adapter
         private void ReadChannel(byte channel)
         {
             var reading = readADC_SingleEnded(channel);
-            ChannelChanged?.Invoke(this, new ChannelReadingDone {RawValue = reading, Channel = channel});
+            ChannelChanged?.Invoke(this, new ChannelReadingDone {RawValue = reading, Channel = channel, SlaveAddress = _ads1115.ConnectionSettings.SlaveAddress });
         }
 
         private int readADC_SingleEnded(byte channel)
@@ -110,14 +110,14 @@ namespace ADS1115Adapter
         {
             // Write config register to the ADC
             var pointerCommand = (new[] {(byte) ADS1015_REG_POINTER_CONFIG.GetHashCode()}).Union(BitConverter.GetBytes(config)).ToArray();
-            ads1115.Write(pointerCommand);
+            _ads1115.Write(pointerCommand);
 
             var dataBuffer = new byte[2];
 
             Task.Delay(TimeSpan.FromMilliseconds(ADS1115_CONVERSIONDELAY.GetHashCode())).Wait();
 
             pointerCommand = new[] { (byte)ADS1015_REG_POINTER_CONVERT.GetHashCode() };
-            ads1115.WriteRead(pointerCommand, dataBuffer);
+            _ads1115.WriteRead(pointerCommand, dataBuffer);
 
             // Read the conversion results
             var rawReading = dataBuffer[0] << 8 | dataBuffer[1];

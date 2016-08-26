@@ -127,6 +127,9 @@
     <Compile Include="..\HeadlessRobot\DTOs\DataChanged.cs">
       <Link>Models\DataChanged.cs</Link>
     </Compile>
+    <Compile Include="..\HeadlessRobot\DTOs\IRSensorReading.cs">
+      <Link>Models\IRSensorReading.cs</Link>
+    </Compile>
     <Compile Include="App_Start\FilterConfig.cs" />
     <Compile Include="App_Start\JsonFormatter.cs" />
     <Compile Include="App_Start\WebApiConfig.cs" />

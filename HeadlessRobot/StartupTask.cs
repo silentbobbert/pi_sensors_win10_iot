@@ -35,8 +35,9 @@ namespace HeadlessRobot
     {
         private const double SharpConversionFactor = 4221057.491;
         private const double SharpExponent = 1.26814;
-        private const int ArduinoSlaveAddress = 0x30;
+        private const int ArduinoSlaveAddress = 0x07;
         private const int ServoControllerAddress = 0x40;
+        private const string BusName = "I2C1";
 
         private BackgroundTaskDeferral _deferral;
         private readonly Dictionary<string, ICommonDevice> _devices;
@@ -49,6 +50,12 @@ namespace HeadlessRobot
         private static readonly DataChanged MessageObject = new DataChanged();
         private readonly object _lock = new object();
         private HttpClient _client;
+
+        private readonly ObservableCollection<DeviceInformation> _listOfDevices;
+        private readonly CancellationTokenSource _readCancellationTokenSource = new CancellationTokenSource();
+        private SerialDevice _serialPort = null;
+        private DataReader _dataReaderObject = null;
+        private DeviceInformation _I2CBus;
 
         public StartupTask()
         {
@@ -97,9 +104,16 @@ namespace HeadlessRobot
             _deferral = taskInstance.GetDeferral();
             taskInstance.Canceled += TaskInstance_Canceled;
 
+            _I2CBus = await FindI2CController(BusName);
+
             //await ListAvailablePorts(); //Does not work on RPi3 - yet. Should work on RPi2...
 
+            //await SetSerialDevice();
+            //await Listen();
+
             await StartDevices();
+
+            
 
             while (_runTask)
             {
@@ -107,6 +121,30 @@ namespace HeadlessRobot
             }
 
             _deferral.Complete();
+        }
+
+        private async Task SetSerialDevice()
+        {
+            try
+            {
+                _serialPort = await SerialDevice.FromIdAsync(_listOfDevices.First().Id);
+
+                // ...
+
+                // Configure serial settings
+                _serialPort.WriteTimeout = TimeSpan.FromMilliseconds(1000);
+                _serialPort.ReadTimeout = TimeSpan.FromMilliseconds(1000);
+                _serialPort.BaudRate = 19200;
+                _serialPort.Parity = SerialParity.None;
+                _serialPort.StopBits = SerialStopBitCount.One;
+                _serialPort.DataBits = 8;
+
+                // ...
+            }
+            catch (Exception ex)
+            {
+                // ...
+            }
         }
 
         private async Task StartDevices()
@@ -162,6 +200,7 @@ namespace HeadlessRobot
         private void TaskInstance_Canceled(IBackgroundTaskInstance sender, BackgroundTaskCancellationReason reason)
         {
             _logger.LogInfo(reason.ToString());
+            _readCancellationTokenSource.Cancel();
             _runTask = false;
         }
 
@@ -184,7 +223,8 @@ namespace HeadlessRobot
             {
                 //InitSimulator(),
                 //InitI2cVCNL4000(),
-                //InitI2cADS1115(0x01),
+                InitI2cADS1115(0x4A, 1),
+                InitI2cADS1115(ADS1115_Constants.ADS1115_ADDRESS.GetHashCode(), 1),
                 InitArduinoI2C()
             };
 
@@ -197,9 +237,7 @@ namespace HeadlessRobot
         [SuppressMessage("ReSharper", "InconsistentNaming")]
         private async Task<PCA9685ServoContoller> InitI2cServoController()
         {
-            const string busName = "I2C1";
-            var bus = await FindI2CController(busName);
-            var device = await FindI2CDevice(bus, ServoControllerAddress, I2cBusSpeed.FastMode, I2cSharingMode.Shared);
+            var device = await FindI2CDevice(_I2CBus, ServoControllerAddress, I2cBusSpeed.FastMode, I2cSharingMode.Shared);
 
             var servoController = new PCA9685ServoContoller(device);
             return servoController;
@@ -224,9 +262,7 @@ namespace HeadlessRobot
         // ReSharper disable once InconsistentNaming
         private async Task InitI2cVCNL4000()
         {
-            const string busName = "I2C1";
-            var bus = await FindI2CController(busName);
-            var device = await FindI2CDevice(bus, VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(),I2cBusSpeed.FastMode, I2cSharingMode.Shared);
+            var device = await FindI2CDevice(_I2CBus, VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(),I2cBusSpeed.FastMode, I2cSharingMode.Shared);
 
             var initSettings = new VCNL4000Settings
             {
@@ -243,26 +279,23 @@ namespace HeadlessRobot
             vcnl4000.AmbientLightReceived += Vcnl4000_AmbientLightReceived;
             vcnl4000.SensorException += SensorException_Handler;
 
-            _devices.Add(DeviceName(busName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(), null), vcnl4000);
+            _devices.Add(DeviceName(BusName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(), null), vcnl4000);
         }
-        private async Task InitI2cADS1115(byte channel)
+        // ReSharper disable once InconsistentNaming
+        private async Task InitI2cADS1115(int slaveAddress, byte channel)
         {
-            const string busName = "I2C1";
-            var bus = await FindI2CController(busName);
-            var device = await FindI2CDevice(bus, ADS1115_Constants.ADS1115_ADDRESS.GetHashCode(), I2cBusSpeed.FastMode, I2cSharingMode.Shared);
+            var device = await FindI2CDevice(_I2CBus, slaveAddress, I2cBusSpeed.FastMode, I2cSharingMode.Shared);
 
             IADS1115Device ads1115 = new ADS1115Device(device, channel);
             ads1115.ChannelChanged += Ads1115ChannelChanged;
-            _devices.Add(DeviceName(busName, (byte)ADS1115_Constants.ADS1115_ADDRESS.GetHashCode(), null), ads1115);
+            _devices.Add(DeviceName(BusName, (byte)slaveAddress, null), ads1115);
         }
         private async Task InitArduinoI2C()
         {
-            const string busName = "I2C1";
-            var bus = await FindI2CController(busName);
-            var device = await FindI2CDevice(bus, ArduinoSlaveAddress, I2cBusSpeed.FastMode, I2cSharingMode.Shared);
+            var device = await FindI2CDevice(_I2CBus, ArduinoSlaveAddress, I2cBusSpeed.FastMode, I2cSharingMode.Shared);
 
             var arduino = new ArduinoSensor(device, 25);
-            _devices.Add(DeviceName(busName, ArduinoSlaveAddress, null), arduino);
+            _devices.Add(DeviceName(BusName, ArduinoSlaveAddress, null), arduino);
         }
         private async Task<DeviceInformation> FindI2CController(string busName)
         {
@@ -328,15 +361,32 @@ namespace HeadlessRobot
         }
         private void Ads1115ChannelChanged(object sender, ChannelReadingDone e)
         {
-            var convertedDistance = _sharpSensorConverter.Convert(e.RawValue);
-            var message = $"Channel {e.Channel + 1} Message Received - Raw Value {e.RawValue} - Converted Distance {convertedDistance:F2} mm";
-            _logInfoAction(message);
 
             lock (_lock)
             {
+                var convertedDistance = _sharpSensorConverter.Convert(e.RawValue);
+                var message = $"Device {e.SlaveAddress} Channel {e.Channel + 1} Message Received - Raw Value {e.RawValue} - Converted Distance {convertedDistance:F2} mm";
+                _logInfoAction(message);
+
                 MessageObject.Error = null;
-                MessageObject.IRSensorDistance = convertedDistance;
-                MessageObject.IRSensorRaw = e.RawValue;
+
+                var reading = MessageObject.IRSensorReadings
+                    .DefaultIfEmpty(new IRSensorReading
+                    {
+                        IRSensorDistance = convertedDistance,
+                        IRSensorRaw = e.RawValue,
+                        SlaveAddress = e.SlaveAddress
+                    }).First(s => s.SlaveAddress == e.SlaveAddress);
+
+                reading.SlaveAddress = e.SlaveAddress;
+                reading.IRSensorDistance = convertedDistance;
+                reading.IRSensorRaw = e.RawValue;
+
+                if (!MessageObject.IRSensorReadings.Any(s => s.SlaveAddress == e.SlaveAddress))
+                {
+                    MessageObject.IRSensorReadings.Add(reading);
+                }
+                
                 PostMessageToAPI();
             }
 
@@ -351,13 +401,6 @@ namespace HeadlessRobot
             return name;
         }
 
-
-
-
-        private readonly ObservableCollection<DeviceInformation> _listOfDevices;
-        private CancellationTokenSource _readCancellationTokenSource;
-        private SerialDevice _serialPort = null;
-        private DataReader _dataReaderObject = null;
 
         /// <summary>
         /// ListAvailablePorts
@@ -397,19 +440,20 @@ namespace HeadlessRobot
                 // keep reading the serial input
                 while (true)
                 {
-                    await ReadAsync(_readCancellationTokenSource.Token);
+                    var msg = await ReadAsync(_readCancellationTokenSource.Token);
+                    _logger?.LogInfo(msg);
                 }
             }
             catch (Exception ex)
             {
                 if (ex.GetType().Name == "TaskCanceledException")
                 {
-                    await _logger.LogInfo("Reading task was cancelled, closing device and cleaning up");
+                    await _logger?.LogInfo("Reading task was cancelled, closing device and cleaning up");
                     CloseDevice();
                 }
                 else
                 {
-                    await _logger.LogException("An error occured listening to the serial port", ex);
+                    await _logger?.LogException("An error occured listening to the serial port", ex);
                 }
             }
             finally
@@ -438,6 +482,16 @@ namespace HeadlessRobot
             _dataReaderObject.InputStreamOptions = InputStreamOptions.Partial;
 
             // Create a task object to wait for data on the serialPort.InputStream
+            //try
+            //{
+            //    var buffer = new byte[readBufferLength];
+            //    _dataReaderObject.ReadBytes(buffer);
+            //}
+            //catch (Exception ex)
+            //{
+
+            //}
+            
             var loadAsyncTask = _dataReaderObject.LoadAsync(readBufferLength).AsTask(cancellationToken);
 
             // Launch the task and wait
