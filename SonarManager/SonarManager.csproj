@@ -114,7 +114,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ArduinoBridge\ArduinoBridge.csproj">
-      <Project>{b2cb73bd-0ae8-4a1a-80f6-4cf36d0a030d}</Project>
+      <Project>{B2CB73BD-0AE8-4A1A-80F6-4CF36D0A030D}</Project>
       <Name>ArduinoBridge</Name>
     </ProjectReference>
     <ProjectReference Include="..\Iot.Common\Iot.Common.csproj">

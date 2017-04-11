@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Threading.Tasks;
-using ArduinoBridge;
 using Iot.Common;
 using PCA9685PWMServoContoller;
+using ArduinoBridge;
 
 namespace SonarManager
 {
@@ -22,12 +22,12 @@ namespace SonarManager
         private readonly Func<bool> _haveReading;
         private int _currentPosition;
 
-        public SonarCoordinator(PCA9685ServoContoller contoller, ArduinoSensor sensor)
+        public SonarCoordinator(PCA9685ServoContoller contoller)
         {
             _contoller = contoller;
 
-            sensor.ProximityReceived += (sender, args) => _lastReading = args;
-            sensor.SensorException += (sender, args) => SensorException?.Invoke(this, args); //Pass exceptions from Arduino "sensor" along.
+            //sensor.ProximityReceived += (sender, args) => _lastReading = args;
+            //sensor.SensorException += (sender, args) => SensorException?.Invoke(this, args); //Pass exceptions from Arduino "sensor" along.
 
             _minServoSetting = 250;
             _maxServoSetting = 800;
@@ -40,7 +40,7 @@ namespace SonarManager
             _currentPosition = _minServoSetting;
             _arcUnitsPerDegree = (_maxServoSetting - _minServoSetting)/180d;
             _stepSize = (int)Math.Floor(_arcUnitsPerDegree*5);
-            _haveReading = () => _lastReading?.RawValue != default(double);
+            _haveReading = () => true; //_lastReading?.RawValue != default(double);
         }
 
         private void Sweep()

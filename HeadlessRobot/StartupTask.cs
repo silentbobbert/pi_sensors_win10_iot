@@ -46,7 +46,7 @@ namespace HeadlessRobot
         private Action<string, Exception> _logIErrorAction;
         private readonly RawValueConverter _sharpSensorConverter;
         private bool _runTask = true;
-        private readonly Uri _apiAddress = new Uri("https://10.21.9.149/RemoteService/api/pilistener/message");
+        private readonly Uri _apiAddress = new Uri("https://10.21.9.204/RemoteService/api/pilistener/message");
         private static readonly DataChanged MessageObject = new DataChanged();
         private readonly object _lock = new object();
         private readonly object _deviceStartUplock = new object();
@@ -163,7 +163,8 @@ namespace HeadlessRobot
         private async Task<SonarCoordinator> InitSonarCoordinator()
         {
             var pca9685ServoContoller = await InitI2cServoController();
-            var sonarCoordinator = new SonarCoordinator(pca9685ServoContoller, _devices.Single(d => d.Key == DeviceName("I2C1", ArduinoSlaveAddress, null)).Value as ArduinoSensor);
+            var sonarCoordinator = new SonarCoordinator(pca9685ServoContoller);
+            //var sonarCoordinator = new SonarCoordinator(pca9685ServoContoller, _devices.Single(d => d.Key == DeviceName("I2C1", ArduinoSlaveAddress, null)).Value as ArduinoSensor);
 
             sonarCoordinator.PositionFound += SonarCoordinator_PositionFound;
             sonarCoordinator.SensorException += SonarCoordinator_SensorException;
@@ -226,7 +227,7 @@ namespace HeadlessRobot
                 //InitI2cVCNL4000(),
                 InitI2cADS1115(0x4A, 1),
                 InitI2cADS1115(ADS1115_Constants.ADS1115_ADDRESS.GetHashCode(), 1),
-                InitArduinoI2C()
+                //InitArduinoI2C()
             };
 
             return Task.WhenAll(devicesToStart)
