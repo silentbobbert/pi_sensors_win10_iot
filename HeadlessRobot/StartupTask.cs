@@ -6,26 +6,19 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Windows.ApplicationModel;
 using Windows.ApplicationModel.Background;
 using Windows.Devices.Enumeration;
 using Windows.Devices.I2c;
 using Windows.Devices.SerialCommunication;
-using Windows.Foundation;
-using Windows.Security.Cryptography.Certificates;
 using Windows.Storage.Streams;
-using Windows.Web.Http;
-using Windows.Web.Http.Filters;
 using ADS1115Adapter;
-using ArduinoBridge;
 using HeadlessRobot.DTOs;
 using Iot.Common;
 using Iot.Common.Utils;
-using Newtonsoft.Json;
 using PCA9685PWMServoContoller;
 using Sharp2Y0A21;
-using VCNL4000Adapter;
 using SonarManager;
+using SRF08Adapter;
 
 // The Background Application template is documented at http://go.microsoft.com/fwlink/?LinkID=533884&clcid=0x409
 
@@ -35,9 +28,10 @@ namespace HeadlessRobot
     {
         private const double SharpConversionFactor = 4221057.491;
         private const double SharpExponent = 1.26814;
-        private const int ArduinoSlaveAddress = 0x07;
         private const int ServoControllerAddress = 0x40;
         private const string BusName = "I2C1";
+        private const int SecondaryAdsAddress = 0x4A;
+        private const int Srf08SlaveAddress = 0x70;
 
         private BackgroundTaskDeferral _deferral;
         private readonly Dictionary<string, ICommonDevice> _devices;
@@ -50,7 +44,7 @@ namespace HeadlessRobot
         private static readonly DataChanged MessageObject = new DataChanged();
         private readonly object _lock = new object();
         private readonly object _deviceStartUplock = new object();
-        private HttpClient _client;
+        //private HttpClient _client;
 
         private readonly ObservableCollection<DeviceInformation> _listOfDevices;
         private readonly CancellationTokenSource _readCancellationTokenSource = new CancellationTokenSource();
@@ -66,39 +60,36 @@ namespace HeadlessRobot
             _sharpSensorConverter = new RawValueConverter(SharpConversionFactor, SharpExponent);
             _devices = new Dictionary<string, ICommonDevice>();
 
-            SetupAPIClient();
+            //SetupAPIClient();
         }
+
         // ReSharper disable once InconsistentNaming
-        private void SetupAPIClient()
-        {
-            var filter = new HttpBaseProtocolFilter();
-            filter.IgnorableServerCertificateErrors.Add(ChainValidationResult.Expired);
-            filter.IgnorableServerCertificateErrors.Add(ChainValidationResult.Untrusted);
-            filter.IgnorableServerCertificateErrors.Add(ChainValidationResult.InvalidName);
-            _client = new HttpClient(filter);
-        }
+        //private void SetupAPIClient()
+        //{
+        //    var filter = new HttpBaseProtocolFilter();
+        //    filter.IgnorableServerCertificateErrors.Add(ChainValidationResult.Expired);
+        //    filter.IgnorableServerCertificateErrors.Add(ChainValidationResult.Untrusted);
+        //    filter.IgnorableServerCertificateErrors.Add(ChainValidationResult.InvalidName);
+        //    _client = new HttpClient(filter);
+        //}
 
-        public IAsyncAction PostMessageToApiAction()
-        {
-            return PostMessageToAPI().AsAsyncAction();
-        }
-        [SuppressMessage("ReSharper", "InconsistentNaming")]
-        private async Task PostMessageToAPI()
-        {
-            try
-            {
-                var stringContent = new HttpStringContent(JsonConvert.SerializeObject(MessageObject), UnicodeEncoding.Utf8, "application/json");
+        //[SuppressMessage("ReSharper", "InconsistentNaming")]
+        //private async Task PostMessageToAPI()
+        //{
+        //    try
+        //    {
+        //        var stringContent = new HttpStringContent(JsonConvert.SerializeObject(MessageObject), UnicodeEncoding.Utf8, "application/json");
 
-                var result = await _client.PostAsync(_apiAddress, stringContent);
-                Debug.WriteLine($"Posting Message result was successful? : {result.IsSuccessStatusCode} Message sent was {stringContent.ToString()}");
+        //        var result = await _client.PostAsync(_apiAddress, stringContent);
+        //        Debug.WriteLine($"Posting Message result was successful? : {result.IsSuccessStatusCode} Message sent was {stringContent.ToString()}");
                 
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine(ex);
-            }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        Debug.WriteLine(ex);
+        //    }
 
-        }
+        //}
 
         public async void Run(IBackgroundTaskInstance taskInstance)
         {
@@ -151,7 +142,7 @@ namespace HeadlessRobot
         private async Task StartDevices()
         {
             await StartSensors();
-            await StartSweeping();
+            //await StartSweeping();
         }
 
         private async Task StartSweeping()
@@ -166,38 +157,38 @@ namespace HeadlessRobot
             var sonarCoordinator = new SonarCoordinator(pca9685ServoContoller);
             //var sonarCoordinator = new SonarCoordinator(pca9685ServoContoller, _devices.Single(d => d.Key == DeviceName("I2C1", ArduinoSlaveAddress, null)).Value as ArduinoSensor);
 
-            sonarCoordinator.PositionFound += SonarCoordinator_PositionFound;
-            sonarCoordinator.SensorException += SonarCoordinator_SensorException;
+            //sonarCoordinator.PositionFound += SonarCoordinator_PositionFound;
+            //sonarCoordinator.SensorException += SonarCoordinator_SensorException;
             _devices.Add("sonarCoordinator", sonarCoordinator);
             return sonarCoordinator;
         }
 
-        private void SonarCoordinator_SensorException(object sender, ArduinoBridge.ExceptionEventArgs e)
-        {
-            var message = $"Error Received from Sensor : \"{e.Message} \"";
-            _logIErrorAction(message, e.Exception);
+        //private void SonarCoordinator_SensorException(object sender, ArduinoBridge.ExceptionEventArgs e)
+        //{
+        //    var message = $"Error Received from Sensor : \"{e.Message} \"";
+        //    _logIErrorAction(message, e.Exception);
 
-            lock (_lock)
-            {
-                MessageObject.Error = e.Exception;
-                PostMessageToAPI();
-            }
-        }
+        //    lock (_lock)
+        //    {
+        //        MessageObject.Error = e.Exception;
+        //        PostMessageToAPI();
+        //    }
+        //}
 
-        private void SonarCoordinator_PositionFound(object sender, PositionalDistanceEventArgs e)
-        {
-            var message = $"Sonar Result Received {e.RawValue} Distance {e.Proximity} mm at Position {e.Angle}";
-            _logger.LogInfo(message);
+        //private void SonarCoordinator_PositionFound(object sender, PositionalDistanceEventArgs e)
+        //{
+        //    var message = $"Sonar Result Received {e.RawValue} Distance {e.Proximity} mm at Position {e.Angle}";
+        //    _logger.LogInfo(message);
 
-            lock (_lock)
-            {
-                MessageObject.Error = null;
-                MessageObject.SonarAngle = e.Angle;
-                MessageObject.SonarSensorDistance = e.Proximity;
-                MessageObject.SonarSensorRaw = e.RawValue;
-                PostMessageToAPI();
-            }
-        }
+        //    lock (_lock)
+        //    {
+        //        MessageObject.Error = null;
+        //        MessageObject.SonarAngle = e.Angle;
+        //        MessageObject.SonarSensorDistance = e.Proximity;
+        //        MessageObject.SonarSensorRaw = e.RawValue;
+        //        PostMessageToAPI();
+        //    }
+        //}
 
         private void TaskInstance_Canceled(IBackgroundTaskInstance sender, BackgroundTaskCancellationReason reason)
         {
@@ -223,17 +214,25 @@ namespace HeadlessRobot
         {
             IEnumerable<Task> devicesToStart = new[]
             {
-                //InitSimulator(),
-                //InitI2cVCNL4000(),
-                InitI2cADS1115(0x4A, 1),
-                InitI2cADS1115(ADS1115_Constants.ADS1115_ADDRESS.GetHashCode(), 1),
-                //InitArduinoI2C()
+                //InitI2cADS1115(SecondaryAdsAddress, 1),
+                //InitI2cADS1115(ADS1115_Constants.ADS1115_ADDRESS.GetHashCode(), 1),
+                InitSRF08()
             };
 
             return Task.WhenAll(devicesToStart)
                 .ContinueWith(all => _devices.ForEach(d =>
                     d.Value.Start()
                 ));
+        }
+
+        [SuppressMessage("ReSharper", "InconsistentNaming")]
+        private async Task InitSRF08()
+        {
+            var device = await FindI2CDevice(_I2CBus, Srf08SlaveAddress, I2cBusSpeed.FastMode, I2cSharingMode.Shared);
+
+            ISRF08Device sonarSrf08Device = new SRF08Device(device);
+
+            AddDevice(Srf08SlaveAddress, sonarSrf08Device);
         }
 
         [SuppressMessage("ReSharper", "InconsistentNaming")]
@@ -244,44 +243,7 @@ namespace HeadlessRobot
             var servoController = new PCA9685ServoContoller(device);
             return servoController;
         }
-        private async Task InitSimulator()
-        {
-            // get the package architecure
-            var package = Package.Current;
-            var systemArchitecture = package.Id.Architecture.ToString();
 
-            if (systemArchitecture.ToUpper().Contains("ARM")) return; //Dont simulate on ARM device - likely to be real device with real sensors!
-
-            const string busName = "I2C1";
-
-            IVCNL4000Device fakevcnl4000 = new SimulatedVcnl4000();
-            fakevcnl4000.ProximityReceived += ProximityReceived_Handler;
-            fakevcnl4000.AmbientLightReceived += Vcnl4000_AmbientLightReceived;
-            fakevcnl4000.SensorException += SensorException_Handler;
-
-            await Task.Run(() => _devices.Add(DeviceName(busName, (byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(), null), fakevcnl4000));
-        }
-        // ReSharper disable once InconsistentNaming
-        private async Task InitI2cVCNL4000()
-        {
-            var device = await FindI2CDevice(_I2CBus, VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(),I2cBusSpeed.FastMode, I2cSharingMode.Shared);
-
-            var initSettings = new VCNL4000Settings
-            {
-                IrCurrent_mA = 20,
-                SensorTimeOut = 300,
-                SensorPollInterval = 500,
-                FirstPolynomial = 3.05101567E-11,
-                SecondPolynomial = 3.75216617E-07,
-                Dy = 4.98316469E-04
-            };
-
-            IVCNL4000Device vcnl4000 = new VCNL4000Device(device, initSettings);
-            vcnl4000.ProximityReceived += ProximityReceived_Handler;
-            vcnl4000.AmbientLightReceived += Vcnl4000_AmbientLightReceived;
-            vcnl4000.SensorException += SensorException_Handler;
-            AddDevice((byte)VCNL4000_Constants.VCNL4000_ADDRESS.GetHashCode(), vcnl4000);
-        }
         // ReSharper disable once InconsistentNaming
         private async Task InitI2cADS1115(int slaveAddress, byte channel)
         {
@@ -300,13 +262,7 @@ namespace HeadlessRobot
             }
         }
 
-        private async Task InitArduinoI2C()
-        {
-            var device = await FindI2CDevice(_I2CBus, ArduinoSlaveAddress, I2cBusSpeed.FastMode, I2cSharingMode.Shared);
-
-            var arduino = new ArduinoSensor(device, 25);
-            AddDevice(ArduinoSlaveAddress, arduino);
-        }
+ 
         private async Task<DeviceInformation> FindI2CController(string busName)
         {
             var aqs = I2cDevice.GetDeviceSelector(busName);              /* Get a selector string that will return all I2C controllers on the system */
@@ -331,44 +287,7 @@ namespace HeadlessRobot
                             "another application, or was not found. Please ensure that no other applications are using I2C and your device is correctly connected to the I2C bus.");
             return null;
         }
-        private void ProximityReceived_Handler(object sender, IProximityEventArgs e)
-        {
-            var message = $"Proximity Received - Raw Value {e.RawValue} & Approximate Distance in mm {e.Proximity:F3}";
-            _logInfoAction(message);
-
-            lock (_lock)
-            {
-                MessageObject.Error = null;
-                MessageObject.ProximitySensorRaw = e.RawValue;
-                MessageObject.ProximitySensorDistance = e.Proximity;
-                PostMessageToAPI();
-            }
-
-        }
-        private void Vcnl4000_AmbientLightReceived(object sender, AmbientLightEventArgs e)
-        {
-            var message = $"Ambient Light Received: {e.RawValue}";
-            _logInfoAction(message);
-
-            lock (_lock)
-            {
-                MessageObject.Error = null;
-                MessageObject.AmbientLight = e.RawValue;
-                PostMessageToAPI();
-            }
-
-        }
-        private void SensorException_Handler(object sender, IExceptionEventArgs e)
-        {
-            var message = $"Error Received from Sensor : \"{e.Message} \"";
-            _logIErrorAction(message, e.Exception);
-
-            lock (_lock)
-            {
-                MessageObject.Error = e.Exception;
-                PostMessageToAPI();
-            }
-        }
+    
         private void Ads1115ChannelChanged(object sender, ChannelReadingDone e)
         {
 
@@ -403,7 +322,7 @@ namespace HeadlessRobot
                     MessageObject.IRSensorReadings.Add(e.SlaveAddress, reading);
                 }
                     
-                PostMessageToAPI();
+                //PostMessageToAPI();
             }
 
         }

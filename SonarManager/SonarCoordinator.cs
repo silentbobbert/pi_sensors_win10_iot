@@ -2,20 +2,19 @@
 using System.Threading.Tasks;
 using Iot.Common;
 using PCA9685PWMServoContoller;
-using ArduinoBridge;
 
 namespace SonarManager
 {
     public sealed class SonarCoordinator : ICommonDevice
     {
         public event EventHandler<PositionalDistanceEventArgs> PositionFound;
-        public event EventHandler<ExceptionEventArgs> SensorException;
+        //public event EventHandler<ExceptionEventArgs> SensorException;
 
         private readonly PCA9685ServoContoller _contoller;
         private readonly int _minServoSetting;
         private readonly int _maxServoSetting;
 
-        private ProximtyEventArgs _lastReading;
+        //private ProximtyEventArgs _lastReading;
         private bool _stopSweeping;
         private readonly double _arcUnitsPerDegree;
         private readonly int _stepSize;
@@ -58,7 +57,7 @@ namespace SonarManager
             {
                 position = position - _stepSize;
                 SetPositionAndGetReading(position);
-                _lastReading = null;
+                //_lastReading = null;
             }
             return position;
         }
@@ -69,7 +68,7 @@ namespace SonarManager
             {
                 position = position + _stepSize;
                 SetPositionAndGetReading(position);
-                _lastReading = null;
+                //_lastReading = null;
             }
             return position;
         }
@@ -78,7 +77,7 @@ namespace SonarManager
         {
             _currentPosition = _maxServoSetting;
             SetPositionAndGetReading(_currentPosition);
-            _lastReading = null;
+            //_lastReading = null;
             return _currentPosition;
         }
 
@@ -86,7 +85,7 @@ namespace SonarManager
         {
             var position = _minServoSetting;
             SetPositionAndGetReading(position);
-            _lastReading = null;
+            //_lastReading = null;
             return position;
         }
 
@@ -97,11 +96,11 @@ namespace SonarManager
                 _contoller.SetPwm(PwmChannel.C0, 0, position);
                 Task.Delay(50).Wait();
                 if(_haveReading())
-                    PositionFound?.Invoke(this, new PositionalDistanceEventArgs { Angle = Angle(position), Proximity = _lastReading.Proximity, RawValue = _lastReading.RawValue });
+                    PositionFound?.Invoke(this, new PositionalDistanceEventArgs { Angle = Angle(position), Proximity = 0 /*_lastReading.Proximity*/, RawValue = 0 /*_lastReading.RawValue*/ });
             }
             catch (Exception ex)
             {
-                SensorException?.Invoke(this, new ExceptionEventArgs { Exception = ex, Message = "An error occured setting Angle and getting distance." });
+                //SensorException?.Invoke(this, new ExceptionEventArgs { Exception = ex, Message = "An error occured setting Angle and getting distance." });
             }
         }
 
@@ -123,7 +122,7 @@ namespace SonarManager
         {
             _stopSweeping = true;
             PositionFound = null;
-            SensorException = null;
+            //SensorException = null;
         }
     }
 }

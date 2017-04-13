@@ -113,10 +113,6 @@
     <EmbeddedResource Include="Properties\SonarManager.rd.xml" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\ArduinoBridge\ArduinoBridge.csproj">
-      <Project>{B2CB73BD-0AE8-4A1A-80F6-4CF36D0A030D}</Project>
-      <Name>ArduinoBridge</Name>
-    </ProjectReference>
     <ProjectReference Include="..\Iot.Common\Iot.Common.csproj">
       <Project>{5692BFA7-5684-4C8C-9D35-C83B3F09307B}</Project>
       <Name>Iot.Common</Name>
