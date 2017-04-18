@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-VisualStudioVersion = 15.0.26403.3
+VisualStudioVersion = 15.0.26403.7
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "pi_sensors_win10Core", "pi_sensors_win10Core\pi_sensors_win10Core.csproj", "{7F1B025E-53C3-48B2-AA4F-F293347FBD08}"
 EndProject

@@ -4,6 +4,7 @@ namespace ADS1115Adapter
     // ReSharper disable InconsistentNaming
     public enum ADS1115_Constants
     {
+        ADS1115_ADDRESS_SECONDARYSENSOR = 0x4A,
         ADS1115_ADDRESS = 0x48,
         ADS1015_CONVERSIONDELAY = 0x01, //delay is ms
         ADS1115_CONVERSIONDELAY = 0x08, //delay is ms

@@ -107,10 +107,7 @@
     <None Include="project.json" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ISRF08Device.cs" />
-    <Compile Include="MeasuringUnits.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Registers.cs" />
     <Compile Include="SRF08Device.cs" />
     <EmbeddedResource Include="Properties\SRF08Adapter.rd.xml" />
   </ItemGroup>
