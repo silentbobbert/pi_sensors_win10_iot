@@ -2,32 +2,56 @@
 using System.Threading.Tasks;
 using Iot.Common;
 using PCA9685PWMServoContoller;
+using SRF08Adapter;
 
 namespace SonarManager
 {
     public sealed class SonarCoordinator : ICommonDevice
     {
         public event EventHandler<PositionalDistanceEventArgs> PositionFound;
-        //public event EventHandler<ExceptionEventArgs> SensorException;
+        public event EventHandler<SRF08ExceptionEventArgs> SensorException;
 
         private readonly PCA9685ServoContoller _contoller;
-        private readonly int _minServoSetting;
-        private readonly int _maxServoSetting;
+        private int _minServoSetting;
+        private int _maxServoSetting;
 
-        //private ProximtyEventArgs _lastReading;
+        private double? _lastReading;
         private bool _stopSweeping;
-        private readonly double _arcUnitsPerDegree;
-        private readonly int _stepSize;
-        private readonly Func<bool> _haveReading;
+        private double _arcUnitsPerDegree;
+        private int _stepSize;
+        
         private int _currentPosition;
+        private Mode _mode = Mode.Incrementing;
 
-        public SonarCoordinator(PCA9685ServoContoller contoller)
+        private enum Mode
+        {
+            Incrementing = 0,
+            Decrementing = 1
+        }
+
+        public SonarCoordinator(PCA9685ServoContoller contoller, SRF08Device sensorDevice)
         {
             _contoller = contoller;
 
-            //sensor.ProximityReceived += (sender, args) => _lastReading = args;
-            //sensor.SensorException += (sender, args) => SensorException?.Invoke(this, args); //Pass exceptions from Arduino "sensor" along.
+            sensorDevice.DistanceFound += (sender, args) =>
+            {
+                _lastReading = args.Proximity;
+                Move();
+            };
+        
 
+            sensorDevice.ExceptionOccured += (sender, args) =>
+            {
+                _lastReading = null;
+                //Pass exceptions from SRF08 "sensor" along.
+                SensorException?.Invoke(this, args);
+            }; 
+
+            SetupServoController();
+        }
+
+        private void SetupServoController()
+        {
             _minServoSetting = 250;
             _maxServoSetting = 800;
 
@@ -37,71 +61,29 @@ namespace SonarManager
             Task.Delay(500).Wait();
 
             _currentPosition = _minServoSetting;
-            _arcUnitsPerDegree = (_maxServoSetting - _minServoSetting)/180d;
-            _stepSize = (int)Math.Floor(_arcUnitsPerDegree*5);
-            _haveReading = () => true; //_lastReading?.RawValue != default(double);
+            _arcUnitsPerDegree = (_maxServoSetting - _minServoSetting) / 180d;
+            _stepSize = (int) Math.Floor(_arcUnitsPerDegree * 5);
         }
 
-        private void Sweep()
+        private void Move()
         {
-            _currentPosition = GetMinimumReading();
-            _currentPosition = ClockWiseSweep(_currentPosition);
-            _currentPosition = GetMaximumReading();
-            AntiClockWiseSweep(_currentPosition);
-            GetMinimumReading();
-        }
+            if (!_lastReading.HasValue || _stopSweeping) return;
 
-        private int AntiClockWiseSweep(int position)
-        {
-            while (position > _minServoSetting)
+            switch (_mode)
             {
-                position = position - _stepSize;
-                SetPositionAndGetReading(position);
-                //_lastReading = null;
+                case Mode.Incrementing:
+                    _currentPosition = Math.Min(_currentPosition + _stepSize, _maxServoSetting);
+                    _mode = _currentPosition == _maxServoSetting ? Mode.Decrementing : Mode.Incrementing;
+                    break;
+                case Mode.Decrementing:
+                    _currentPosition = Math.Max(_currentPosition - _stepSize, _minServoSetting);
+                    _mode = _currentPosition == _minServoSetting ? Mode.Incrementing : Mode.Decrementing;
+                    break;
             }
-            return position;
-        }
 
-        private int ClockWiseSweep(int position)
-        {
-            while (position < _maxServoSetting)
-            {
-                position = position + _stepSize;
-                SetPositionAndGetReading(position);
-                //_lastReading = null;
-            }
-            return position;
-        }
-
-        private int GetMaximumReading()
-        {
-            _currentPosition = _maxServoSetting;
-            SetPositionAndGetReading(_currentPosition);
-            //_lastReading = null;
-            return _currentPosition;
-        }
-
-        private int GetMinimumReading()
-        {
-            var position = _minServoSetting;
-            SetPositionAndGetReading(position);
-            //_lastReading = null;
-            return position;
-        }
-
-        private void SetPositionAndGetReading(int position)
-        {
-            try
-            {
-                _contoller.SetPwm(PwmChannel.C0, 0, position);
-                Task.Delay(50).Wait();
-                if(_haveReading())
-                    PositionFound?.Invoke(this, new PositionalDistanceEventArgs { Angle = Angle(position), Proximity = 0 /*_lastReading.Proximity*/, RawValue = 0 /*_lastReading.RawValue*/ });
-            }
-            catch (Exception ex)
-            {
-                //SensorException?.Invoke(this, new ExceptionEventArgs { Exception = ex, Message = "An error occured setting Angle and getting distance." });
-            }
+            _contoller.SetPwm(PwmChannel.C0, 0, _currentPosition);
+            //Task.Delay(50).Wait(); Sonar is sending data no faster than every 75 ms
+            PositionFound?.Invoke(this, new PositionalDistanceEventArgs { Angle = Angle(_currentPosition), Proximity = _lastReading.GetValueOrDefault(), RawValue = 0 });
         }
 
         private int Angle(double position)
@@ -112,17 +94,15 @@ namespace SonarManager
 
         public void Start()
         {
-            while (!_stopSweeping)
-            {
-                Sweep();
-            }
+            _stopSweeping = false;
         }
 
         public void Dispose()
         {
             _stopSweeping = true;
             PositionFound = null;
-            //SensorException = null;
+            _lastReading = null;
+            SensorException = null;
         }
     }
 }

@@ -109,6 +109,8 @@
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SRF08Device.cs" />
+    <Compile Include="SRF08DistanceFoundEventArgs.cs" />
+    <Compile Include="SRF08ExceptionEventArgs.cs" />
     <EmbeddedResource Include="Properties\SRF08Adapter.rd.xml" />
   </ItemGroup>
   <ItemGroup>

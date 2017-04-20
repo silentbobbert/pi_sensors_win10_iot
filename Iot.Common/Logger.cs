@@ -16,18 +16,18 @@ namespace Iot.Common
             _logErrorMethod = logErrorMethod;
         }
 
-        public async Task LogInfo(string message)
+        public Task LogInfo(string message)
         {
             message = MessageFormatter(message);
             System.Diagnostics.Debug.WriteLine(message);
-            await Task.Run(() => _logInfoMethod(message));
+            return Task.Run(() => _logInfoMethod(message));
         }
 
-        public async Task LogException(string message, Exception exception)
+        public Task LogException(string message, Exception exception)
         {
             var formattedMessage = MessageFormatter(message, exception.Message);
             System.Diagnostics.Debug.WriteLine(formattedMessage);
-            await Task.Run(() => _logErrorMethod(message, exception));
+            return Task.Run(() => _logErrorMethod(message, exception));
         }
 
         private string MessageFormatter(params string[] messageParts)

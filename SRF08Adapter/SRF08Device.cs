@@ -11,6 +11,9 @@ namespace SRF08Adapter
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     public class SRF08Device : ICommonDevice
     {
+        public event EventHandler<SRF08DistanceFoundEventArgs> DistanceFound;
+        public event EventHandler<SRF08ExceptionEventArgs> ExceptionOccured;
+
         private readonly I2cDevice _device;
         private ThreadPoolTimer _timer;
         private bool _polling;
@@ -24,33 +27,51 @@ namespace SRF08Adapter
 
         public void Dispose()
         {
+            DistanceFound = null;
+            ExceptionOccured = null;
             _timer?.Cancel();
             _timer = null;
         }
 
         public void Start()
         {
-            Task.Delay(100).Wait();
-            _timer = ThreadPoolTimer.CreatePeriodicTimer(PollSensor, TimeSpan.FromMilliseconds(5));
+            try
+            {
+                Task.Delay(100).Wait();
+                _timer = ThreadPoolTimer.CreatePeriodicTimer(PollSensor, TimeSpan.FromMilliseconds(5));
+            }
+            catch (Exception e)
+            {
+                ExceptionOccured?.Invoke(this, new SRF08ExceptionEventArgs {Exception = e, Message = "Error starting sonar sensor"});
+            }
         }
 
         private void PollSensor(ThreadPoolTimer timer)
         {
             if(_polling) return;
 
-            _polling = true;
+            try
+            {
+                _polling = true;
 
-            var result = new byte[2];
+                var result = new byte[2];
 
-            _device.Write(new byte[] { CMD, 0x51 });
-            Task.Delay(70).Wait();
+                _device.Write(new byte[] { CMD, 0x51 });
+                Task.Delay(70).Wait();
 
-            _device.WriteRead(new byte[]{ 0x02},  result);
+                _device.WriteRead(new byte[] { 0x02 }, result);
 
-            var range = (result[0] << 8) + result[1];
-            Debug.WriteLine($"Range: {range} cm");
+                var range = (result[0] << 8) + result[1];
+                Debug.WriteLine($"Range: {range} cm");
 
-            _polling = false;
+                DistanceFound?.Invoke(this, new SRF08DistanceFoundEventArgs { Proximity = range });
+                _polling = false;
+
+            }
+            catch (Exception e)
+            {
+                ExceptionOccured?.Invoke(this, new SRF08ExceptionEventArgs {Exception = e, Message = "Error occured getting Range"});
+            }
         }
 
         public byte SoftwareVersion()

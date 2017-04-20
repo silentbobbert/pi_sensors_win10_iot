@@ -7,7 +7,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.Background;
-using Windows.Devices;
 using Windows.Devices.Enumeration;
 using Windows.Devices.I2c;
 using Windows.Devices.SerialCommunication;
@@ -16,7 +15,6 @@ using ADS1115Adapter;
 using HeadlessRobot.DTOs;
 using Iot.Common;
 using Iot.Common.Utils;
-using Microsoft.IoT.Lightning.Providers;
 using PCA9685PWMServoContoller;
 using Sharp2Y0A21;
 using SonarManager;
@@ -31,7 +29,7 @@ namespace HeadlessRobot
         private const double SharpConversionFactor = 4221057.491;
         private const double SharpExponent = 1.26814;
         private const int ServoControllerAddress = 0x40;
-        private const string BusName = "I2C1";
+        
         
         private const int Srf08SlaveAddress = 0x70;
 
@@ -52,8 +50,7 @@ namespace HeadlessRobot
         private readonly CancellationTokenSource _readCancellationTokenSource = new CancellationTokenSource();
         private SerialDevice _serialPort = null;
         private DataReader _dataReaderObject = null;
-        //private DeviceInformation _I2CBus;
-        private I2cController _i2cController;
+        private readonly I2CManager _i2CManager;
 
         public StartupTask()
         {
@@ -63,10 +60,7 @@ namespace HeadlessRobot
             _sharpSensorConverter = new RawValueConverter(SharpConversionFactor, SharpExponent);
             _devices = new Dictionary<string, ICommonDevice>();
 
-            if (LightningProvider.IsLightningEnabled)
-            {
-                LowLevelDevicesController.DefaultProvider = LightningProvider.GetAggregateProvider();
-            }
+            _i2CManager = new I2CManager(_logger);
 
             //SetupAPIClient();
         }
@@ -104,8 +98,7 @@ namespace HeadlessRobot
             _deferral = taskInstance.GetDeferral();
             taskInstance.Canceled += TaskInstance_Canceled;
 
-            //_I2CBus = await FindI2CController(BusName);
-            _i2cController = await I2cController.GetDefaultAsync();
+            await _i2CManager.Init();
 
             //await ListAvailablePorts(); //Does not work on RPi3 - yet. Should work on RPi2...
 
@@ -123,6 +116,7 @@ namespace HeadlessRobot
             _deferral.Complete();
         }
 
+        
         private async Task SetSerialDevice()
         {
             try
@@ -150,7 +144,7 @@ namespace HeadlessRobot
         private async Task StartDevices()
         {
             await StartSensors();
-            //await StartSweeping();
+            await StartSweeping();
         }
 
         private async Task StartSweeping()
@@ -162,41 +156,38 @@ namespace HeadlessRobot
         private async Task<SonarCoordinator> InitSonarCoordinator()
         {
             var pca9685ServoContoller = await InitI2cServoController();
-            var sonarCoordinator = new SonarCoordinator(pca9685ServoContoller);
-            //var sonarCoordinator = new SonarCoordinator(pca9685ServoContoller, _devices.Single(d => d.Key == DeviceName("I2C1", ArduinoSlaveAddress, null)).Value as ArduinoSensor);
+            var sonarCoordinator = new SonarCoordinator(pca9685ServoContoller, _devices.Single(d => d.Key == DeviceName("I2C1", Srf08SlaveAddress, null)).Value as SRF08Device);
 
-            //sonarCoordinator.PositionFound += SonarCoordinator_PositionFound;
-            //sonarCoordinator.SensorException += SonarCoordinator_SensorException;
+            sonarCoordinator.PositionFound += SonarCoordinator_PositionFound;
+            sonarCoordinator.SensorException += SonarCoordinator_SensorException;
             _devices.Add("sonarCoordinator", sonarCoordinator);
             return sonarCoordinator;
         }
 
-        //private void SonarCoordinator_SensorException(object sender, ArduinoBridge.ExceptionEventArgs e)
-        //{
-        //    var message = $"Error Received from Sensor : \"{e.Message} \"";
-        //    _logIErrorAction(message, e.Exception);
+        private void SonarCoordinator_SensorException(object sender, IExceptionEventArgs e)
+        {
+            var message = $"Error Received from Sensor : \"{e.Message} \"";
+            _logIErrorAction(message, e.Exception);
 
-        //    lock (_lock)
-        //    {
-        //        MessageObject.Error = e.Exception;
-        //        PostMessageToAPI();
-        //    }
-        //}
+            lock (_lock)
+            {
+                MessageObject.Error = e.Exception;
+            }
+        }
 
-        //private void SonarCoordinator_PositionFound(object sender, PositionalDistanceEventArgs e)
-        //{
-        //    var message = $"Sonar Result Received {e.RawValue} Distance {e.Proximity} mm at Position {e.Angle}";
-        //    _logger.LogInfo(message);
+        private void SonarCoordinator_PositionFound(object sender, PositionalDistanceEventArgs e)
+        {
+            var message = $"Sonar Result Received Distance {e.Proximity} cm at Position {e.Angle}";
+            _logger.LogInfo(message);
 
-        //    lock (_lock)
-        //    {
-        //        MessageObject.Error = null;
-        //        MessageObject.SonarAngle = e.Angle;
-        //        MessageObject.SonarSensorDistance = e.Proximity;
-        //        MessageObject.SonarSensorRaw = e.RawValue;
-        //        PostMessageToAPI();
-        //    }
-        //}
+            lock (_lock)
+            {
+                MessageObject.Error = null;
+                MessageObject.SonarAngle = e.Angle;
+                MessageObject.SonarSensorDistance = e.Proximity;
+                MessageObject.SonarSensorRaw = e.RawValue;
+            }
+        }
 
         private void TaskInstance_Canceled(IBackgroundTaskInstance sender, BackgroundTaskCancellationReason reason)
         {
@@ -236,7 +227,8 @@ namespace HeadlessRobot
         [SuppressMessage("ReSharper", "InconsistentNaming")]
         private async Task InitSRF08()
         {
-            var device = await FindI2CDevice(Srf08SlaveAddress, I2cBusSpeed.StandardMode, I2cSharingMode.Exclusive);
+            var device = await _i2CManager.FindI2CDevice(Srf08SlaveAddress, I2cBusSpeed.StandardMode, I2cSharingMode.Exclusive);
+
             var sonarSrf08Device = new SRF08Device(device);
             AddDevice(Srf08SlaveAddress, sonarSrf08Device);
         }
@@ -244,7 +236,7 @@ namespace HeadlessRobot
         [SuppressMessage("ReSharper", "InconsistentNaming")]
         private async Task<PCA9685ServoContoller> InitI2cServoController()
         {
-            var device = await FindI2CDevice(ServoControllerAddress, I2cBusSpeed.FastMode, I2cSharingMode.Shared);
+            var device = await _i2CManager.FindI2CDevice(ServoControllerAddress, I2cBusSpeed.FastMode, I2cSharingMode.Shared);
 
             var servoController = new PCA9685ServoContoller(device);
             return servoController;
@@ -253,7 +245,7 @@ namespace HeadlessRobot
         // ReSharper disable once InconsistentNaming
         private async Task InitI2cADS1115(int slaveAddress, byte channel)
         {
-            var device = await FindI2CDevice(slaveAddress, I2cBusSpeed.FastMode, I2cSharingMode.Shared);
+            var device = await _i2CManager.FindI2CDevice(slaveAddress, I2cBusSpeed.FastMode, I2cSharingMode.Shared);
 
             IADS1115Device ads1115 = new ADS1115Device(device, channel);
             ads1115.ChannelChanged += Ads1115ChannelChanged;
@@ -264,35 +256,8 @@ namespace HeadlessRobot
         {
             lock (_deviceStartUplock)
             {
-                _devices.Add(DeviceName(BusName, (byte)slaveAddress, null), device);
+                _devices.Add(DeviceName(_i2CManager.BusName, (byte)slaveAddress, null), device);
             }
-        }
-
- 
-        private async Task<DeviceInformation> FindI2CController(string busName)
-        {
-            var aqs = I2cDevice.GetDeviceSelector(busName);              /* Get a selector string that will return all I2C controllers on the system */
-            var dis = await DeviceInformation.FindAllAsync(aqs);         /* Find the I2C bus controller device with our selector string           */
-            if (dis.Count != 0) return dis[0];
-
-            _logger.LogException("No I2C controllers were found on the system", new Exception("Unexpected Error"));
-            return null;
-        }
-        private async Task<I2cDevice> FindI2CDevice(int slaveAddress, I2cBusSpeed busSpeed, I2cSharingMode sharingMode)
-        {
-            var settings = new I2cConnectionSettings(slaveAddress)
-            {
-                BusSpeed = busSpeed,
-                SharingMode = sharingMode,
-            };
-
-            var device = await Task<I2cDevice>.Factory.StartNew(() => _i2cController.GetDevice(settings));
-            if (device != null) return device;
-
-
-            _logger.LogInfo($"Slave address {settings.SlaveAddress} on I2C Controller is currently in use by " +
-                            "another application, or was not found. Please ensure that no other applications are using I2C and your device is correctly connected to the I2C bus.");
-            return null;
         }
     
         private void Ads1115ChannelChanged(object sender, ChannelReadingDone e)
